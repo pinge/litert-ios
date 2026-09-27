@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: litert-${{ inputs.version }}-release
+  group: litert-release
   cancel-in-progress: false
 
 env:
@@ -38,6 +38,10 @@ jobs:
     steps:
       - name: LiteRT Version
         run: |
+          if [[ "$GITHUB_REF_TYPE" != "branch" ]]; then
+            echo "LiteRT releases must run from a branch" >&2
+            exit 1
+          fi
           if [[ ! "$LITERT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "LiteRT has no $LITERT_VERSION version" >&2
             exit 1
@@ -48,7 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "litert-v${LITERT_VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+          if gh release view "v${LITERT_VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -56,9 +60,9 @@ jobs:
 
       - name: Skip Release
         if: steps.check.outputs.exists == 'true'
-        run: echo "Release litert-v${LITERT_VERSION} already exists."
+        run: echo "Release v${LITERT_VERSION} already exists."
 
-      - name: Checkout Posest
+      - name: Checkout Repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.check.outputs.exists != 'true'
 
@@ -124,9 +128,13 @@ jobs:
         if: steps.check.outputs.exists != 'true'
         run: |
           cd "$ARTIFACT_DIR"
-          shasum -a 256 \
-            CLiteRT.xcframework.zip \
-            LiteRTMetalAccelerator.xcframework.zip | tee SHA256SUMS
+          CLITERT_CHECKSUM="$(shasum -a 256 CLiteRT.xcframework.zip | awk '{ print $1 }')"
+          METAL_CHECKSUM="$(shasum -a 256 LiteRTMetalAccelerator.xcframework.zip | awk '{ print $1 }')"
+          printf '%s  %s\n' \
+            "$CLITERT_CHECKSUM" CLiteRT.xcframework.zip \
+            "$METAL_CHECKSUM" LiteRTMetalAccelerator.xcframework.zip | tee SHA256SUMS
+          echo "CLITERT_CHECKSUM=$CLITERT_CHECKSUM" >> "$GITHUB_ENV"
+          echo "METAL_CHECKSUM=$METAL_CHECKSUM" >> "$GITHUB_ENV"
           du -sh "$LITERT_SOURCE_DIR" "$ARTIFACT_DIR"
           cat > "LiteRT-v${LITERT_VERSION}.json" <<EOF
           {
@@ -145,6 +153,60 @@ jobs:
           EOF
           cat "LiteRT-v${LITERT_VERSION}.json"
 
+      - name: Swift Package Manifest
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          cat > Package.swift <<EOF
+          // swift-tools-version: 5.9
+
+          import PackageDescription
+
+          let release = "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${LITERT_VERSION}"
+
+          let package = Package(
+            name: "LiteRT",
+            platforms: [
+              .iOS(.v15),
+            ],
+            products: [
+              .library(
+                name: "LiteRT",
+                targets: [
+                  "CLiteRT",
+                  "LiteRTMetalAccelerator",
+                ]
+              ),
+            ],
+            targets: [
+              .binaryTarget(
+                name: "CLiteRT",
+                url: "\(release)/CLiteRT.xcframework.zip",
+                checksum: "${CLITERT_CHECKSUM}"
+              ),
+              .binaryTarget(
+                name: "LiteRTMetalAccelerator",
+                url: "\(release)/LiteRTMetalAccelerator.xcframework.zip",
+                checksum: "${METAL_CHECKSUM}"
+              ),
+            ]
+          )
+          EOF
+          swift package dump-package >/dev/null
+
+      - name: Commit Swift Package Manifest
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          if [[ -n "$(git status --porcelain -- Package.swift)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Package.swift
+            git diff --cached --check -- Package.swift
+            git commit -m "Release LiteRT v${LITERT_VERSION}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          PACKAGE_COMMIT="$(git rev-parse HEAD)"
+          echo "PACKAGE_COMMIT=$PACKAGE_COMMIT" >> "$GITHUB_ENV"
+
       - name: GitHub Release
         if: steps.check.outputs.exists != 'true'
         env:
@@ -154,9 +216,10 @@ jobs:
           shasum -a 256 \
             CLiteRT.xcframework.zip \
             LiteRTMetalAccelerator.xcframework.zip
-          gh release create "litert-v${LITERT_VERSION}" \
+          gh release create "v${LITERT_VERSION}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "litert-v${LITERT_VERSION}" \
+            --target "$PACKAGE_COMMIT" \
+            --title "LiteRT v${LITERT_VERSION} for iOS" \
             --notes "📚 LiteRT v${LITERT_VERSION} for iOS"$'\n'"📦️ Built from ${LITERT_REPOSITORY%.git}/releases/tag/v${LITERT_VERSION}"$'\n'"📝 See LiteRT-v${LITERT_VERSION}.json and verify with SHA256SUMS" \
             CLiteRT.xcframework.zip \
             LiteRTMetalAccelerator.xcframework.zip \
