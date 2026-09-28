@@ -293,8 +293,58 @@ validate_zip() {
   done
 }
 
+validate_cocoapods_zip() {
+  local zip="$1"
+  local license="$2"
+  local contents
+  local roots
+  local expected_roots
+  local archive_files
+  local expected_files
+  local relative_path
+  local local_file
+  local local_hash
+  local zip_hash
+
+  assert_file "$zip"
+  assert_file "$license"
+  contents="$(zipinfo -1 "$zip")"
+  roots="$(awk -F/ 'NF && $1 != "__MACOSX" { print $1 }' <<< "$contents" | sort -u)"
+  expected_roots="$(printf '%s\n' CLiteRT.xcframework LICENSE LiteRTMetalAccelerator.xcframework | sort)"
+  assert_equal "$roots" "$expected_roots" "$zip top-level payload"
+
+  awk '
+    /\.dylib$/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' <<< "$contents" && fail "$zip contains a standalone dylib"
+
+  archive_files="$(awk -F/ '
+    NF && $1 != "__MACOSX" && substr($0, length($0), 1) != "/" { print }
+  ' <<< "$contents" | sort)"
+  expected_files="$(
+    cd "$artifact_directory"
+    find CLiteRT.xcframework LiteRTMetalAccelerator.xcframework -type f -print
+    printf '%s\n' LICENSE
+  )"
+  expected_files="$(sort <<< "$expected_files")"
+  assert_equal "$archive_files" "$expected_files" "$zip file payload"
+
+  while IFS= read -r relative_path; do
+    if [[ "$relative_path" == LICENSE ]]; then
+      local_file="$license"
+    else
+      local_file="$artifact_directory/$relative_path"
+    fi
+    local_hash="$(shasum -a 256 "$local_file" | awk '{ print $1 }')"
+    zip_hash="$(unzip -p "$zip" "$relative_path" | shasum -a 256 | awk '{ print $1 }')"
+    assert_equal "$zip_hash" "$local_hash" "$zip packaged $relative_path"
+  done <<< "$expected_files"
+}
+
 [[ $# -eq 1 ]] || usage
 
+script_directory="$(cd "$(dirname "$0")" && pwd)"
+repository_root="$(cd "$script_directory/../../.." && pwd)"
 artifact_directory="${1%/}"
 litert_version='2.1.6'
 [[ -n "$artifact_directory" ]] || usage
@@ -313,5 +363,6 @@ validate_metal_build_metadata_removed "$metal/ios-arm64-simulator/LiteRTMetalAcc
 
 validate_zip "$artifact_directory/CLiteRT.xcframework.zip" CLiteRT
 validate_zip "$artifact_directory/LiteRTMetalAccelerator.xcframework.zip" LiteRTMetalAccelerator
+validate_cocoapods_zip "$artifact_directory/LiteRT.xcframeworks.zip" "$repository_root/LICENSE"
 
 printf '✅ LiteRT %s XCFrameworks in %s\n' "$litert_version" "$artifact_directory"

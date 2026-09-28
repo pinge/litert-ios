@@ -82,4 +82,13 @@ ditto -c -k --sequesterRsrc --keepParent \
   "$ARTIFACT_DIR/LiteRTMetalAccelerator.xcframework" \
   "$ARTIFACT_DIR/LiteRTMetalAccelerator.xcframework.zip"
 
+COCOAPODS_PACKAGE_DIR="$ARTIFACT_DIR/LiteRT"
+mkdir -p "$COCOAPODS_PACKAGE_DIR"
+ditto "$ARTIFACT_DIR/CLiteRT.xcframework" "$COCOAPODS_PACKAGE_DIR/CLiteRT.xcframework"
+ditto "$ARTIFACT_DIR/LiteRTMetalAccelerator.xcframework" "$COCOAPODS_PACKAGE_DIR/LiteRTMetalAccelerator.xcframework"
+install -m 0644 "$REPOSITORY_ROOT/LICENSE" "$COCOAPODS_PACKAGE_DIR/LICENSE"
+ditto -c -k --sequesterRsrc \
+  "$COCOAPODS_PACKAGE_DIR" \
+  "$ARTIFACT_DIR/LiteRT.xcframeworks.zip"
+
 printf 'LiteRT 2.1.6 artifacts: %s\n' "$ARTIFACT_DIR"

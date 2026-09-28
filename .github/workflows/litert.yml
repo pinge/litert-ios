@@ -130,11 +130,14 @@ jobs:
           cd "$ARTIFACT_DIR"
           CLITERT_CHECKSUM="$(shasum -a 256 CLiteRT.xcframework.zip | awk '{ print $1 }')"
           METAL_CHECKSUM="$(shasum -a 256 LiteRTMetalAccelerator.xcframework.zip | awk '{ print $1 }')"
+          COCOAPODS_CHECKSUM="$(shasum -a 256 LiteRT.xcframeworks.zip | awk '{ print $1 }')"
           printf '%s  %s\n' \
             "$CLITERT_CHECKSUM" CLiteRT.xcframework.zip \
-            "$METAL_CHECKSUM" LiteRTMetalAccelerator.xcframework.zip | tee SHA256SUMS
+            "$METAL_CHECKSUM" LiteRTMetalAccelerator.xcframework.zip \
+            "$COCOAPODS_CHECKSUM" LiteRT.xcframeworks.zip | tee SHA256SUMS
           echo "CLITERT_CHECKSUM=$CLITERT_CHECKSUM" >> "$GITHUB_ENV"
           echo "METAL_CHECKSUM=$METAL_CHECKSUM" >> "$GITHUB_ENV"
+          echo "COCOAPODS_CHECKSUM=$COCOAPODS_CHECKSUM" >> "$GITHUB_ENV"
           du -sh "$LITERT_SOURCE_DIR" "$ARTIFACT_DIR"
           cat > "LiteRT-v${LITERT_VERSION}.json" <<EOF
           {
@@ -147,13 +150,51 @@ jobs:
             "runner": "${RUNNER_OS} ${RUNNER_ARCH}",
             "artifacts": [
               "CLiteRT.xcframework.zip",
-              "LiteRTMetalAccelerator.xcframework.zip"
+              "LiteRTMetalAccelerator.xcframework.zip",
+              "LiteRT.xcframeworks.zip"
             ]
           }
           EOF
           cat "LiteRT-v${LITERT_VERSION}.json"
 
-      - name: Swift Package Manifest
+      - name: LiteRT.podspec
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          cat > LiteRT.podspec <<EOF
+          Pod::Spec.new do |spec|
+            spec.name = 'LiteRT'
+            spec.version = '${LITERT_VERSION}'
+            spec.authors = 'Google Inc.'
+            spec.license = { :type => 'Apache-2.0', :file => 'LICENSE' }
+            spec.homepage = 'https://github.com/google-ai-edge/LiteRT'
+            spec.source = {
+              :http => "https://github.com/${GITHUB_REPOSITORY}/releases/download/v#{spec.version}/LiteRT.xcframeworks.zip",
+              :sha256 => '${COCOAPODS_CHECKSUM}'
+            }
+            spec.summary = 'LiteRT runtime and Metal accelerator for iOS.'
+            spec.cocoapods_version = '>= 1.9.0'
+            spec.ios.deployment_target = '15.0'
+            spec.vendored_frameworks = [
+              'CLiteRT.xcframework',
+              'LiteRTMetalAccelerator.xcframework'
+            ]
+          end
+          EOF
+          pod ipc spec LiteRT.podspec >/dev/null
+
+      - name: Commit LiteRT.podspec
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          if [[ -n "$(git status --porcelain -- LiteRT.podspec)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add LiteRT.podspec
+            git diff --cached --check -- LiteRT.podspec
+            git commit -m "build: update podspec with LiteRT v${LITERT_VERSION}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Package.swift
         if: steps.check.outputs.exists != 'true'
         run: |
           cat > Package.swift <<EOF
@@ -193,7 +234,7 @@ jobs:
           EOF
           swift package dump-package >/dev/null
 
-      - name: Commit Swift Package Manifest
+      - name: Commit Package.swift
         if: steps.check.outputs.exists != 'true'
         run: |
           if [[ -n "$(git status --porcelain -- Package.swift)" ]]; then
@@ -201,7 +242,7 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add Package.swift
             git diff --cached --check -- Package.swift
-            git commit -m "Release LiteRT v${LITERT_VERSION}"
+            git commit -m "build: update swift package with LiteRT v${LITERT_VERSION}"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
           PACKAGE_COMMIT="$(git rev-parse HEAD)"
@@ -213,9 +254,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd "$ARTIFACT_DIR"
-          shasum -a 256 \
-            CLiteRT.xcframework.zip \
-            LiteRTMetalAccelerator.xcframework.zip
+          shasum -a 256 -c SHA256SUMS
           gh release create "v${LITERT_VERSION}" \
             --repo "${GITHUB_REPOSITORY}" \
             --target "$PACKAGE_COMMIT" \
@@ -223,5 +262,6 @@ jobs:
             --notes "📚 LiteRT v${LITERT_VERSION} for iOS"$'\n'"📦️ Built from ${LITERT_REPOSITORY%.git}/releases/tag/v${LITERT_VERSION}"$'\n'"📝 See LiteRT-v${LITERT_VERSION}.json and verify with SHA256SUMS" \
             CLiteRT.xcframework.zip \
             LiteRTMetalAccelerator.xcframework.zip \
+            LiteRT.xcframeworks.zip \
             "LiteRT-v${LITERT_VERSION}.json" \
             SHA256SUMS
