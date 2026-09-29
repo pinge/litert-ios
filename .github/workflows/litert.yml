@@ -113,7 +113,7 @@ jobs:
             's/^  func testMetalBuffer() throws {$/  func disabledTestMetalBuffer() throws {/' \
             "$TEST_FILE"
           grep -q '^  func disabledTestMetalBuffer() throws {$' "$TEST_FILE"
-          time bazel test -c opt --test_output=all //litert/swift:LiteRT_Swift_Tests
+          bazel test -c opt --test_output=all //litert/swift:LiteRT_Swift_Tests
 
       - name: Package XCFrameworks
         if: steps.check.outputs.exists != 'true'
@@ -182,18 +182,6 @@ jobs:
           EOF
           pod ipc spec LiteRT.podspec >/dev/null
 
-      - name: Commit LiteRT.podspec
-        if: steps.check.outputs.exists != 'true'
-        run: |
-          if [[ -n "$(git status --porcelain -- LiteRT.podspec)" ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add LiteRT.podspec
-            git diff --cached --check -- LiteRT.podspec
-            git commit -m "build: update podspec with LiteRT v${LITERT_VERSION}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-
       - name: Package.swift
         if: steps.check.outputs.exists != 'true'
         run: |
@@ -234,18 +222,84 @@ jobs:
           EOF
           swift package dump-package >/dev/null
 
-      - name: Commit Package.swift
+      - name: Commit Manifests
         if: steps.check.outputs.exists != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          if [[ -n "$(git status --porcelain -- Package.swift)" ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Package.swift
-            git diff --cached --check -- Package.swift
-            git commit -m "build: update swift package with LiteRT v${LITERT_VERSION}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+          EXPECTED_HEAD="$(git rev-parse HEAD)"
+          git add LiteRT.podspec Package.swift
+
+          if git diff --cached --quiet -- LiteRT.podspec Package.swift; then
+            echo "PACKAGE_COMMIT=$EXPECTED_HEAD" >> "$GITHUB_ENV"
+            exit 0
           fi
-          PACKAGE_COMMIT="$(git rev-parse HEAD)"
+
+          git diff --cached --check -- LiteRT.podspec Package.swift
+          PODSPEC_CONTENT="$(base64 < LiteRT.podspec | tr -d '\n')"
+          PACKAGE_CONTENT="$(base64 < Package.swift | tr -d '\n')"
+          QUERY='mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid signature { isValid wasSignedByGitHub } } } }'
+          REQUEST="$(
+            jq -n \
+              --arg query "$QUERY" \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg branch "$GITHUB_REF_NAME" \
+              --arg head "$EXPECTED_HEAD" \
+              --arg message "build: LiteRT v${LITERT_VERSION}" \
+              --arg podspec "$PODSPEC_CONTENT" \
+              --arg package "$PACKAGE_CONTENT" \
+              '{
+                query: $query,
+                variables: {
+                  input: {
+                    branch: {
+                      repositoryNameWithOwner: $repository,
+                      branchName: $branch
+                    },
+                    expectedHeadOid: $head,
+                    message: {
+                      headline: $message
+                    },
+                    fileChanges: {
+                      additions: [
+                        {
+                          path: "LiteRT.podspec",
+                          contents: $podspec
+                        },
+                        {
+                          path: "Package.swift",
+                          contents: $package
+                        }
+                      ]
+                    }
+                  }
+                }
+              }'
+          )"
+          RESPONSE="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --request POST \
+              --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "$REQUEST" \
+              https://api.github.com/graphql
+          )"
+
+          if ! PACKAGE_COMMIT="$(jq -er '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"; then
+            jq . <<< "$RESPONSE" >&2
+            exit 1
+          fi
+          if ! jq -e \
+            '.data.createCommitOnBranch.commit.signature | .isValid == true and .wasSignedByGitHub == true' \
+            <<< "$RESPONSE" >/dev/null; then
+            echo "GitHub did not return a valid signed commit" >&2
+            jq . <<< "$RESPONSE" >&2
+            exit 1
+          fi
+
           echo "PACKAGE_COMMIT=$PACKAGE_COMMIT" >> "$GITHUB_ENV"
 
       - name: GitHub Release

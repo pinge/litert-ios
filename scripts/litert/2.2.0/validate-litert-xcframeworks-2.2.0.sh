@@ -338,18 +338,25 @@ validate_artifact() {
 validate_zip() {
   local zip="$1"
   local module="$2"
+  local license="$3"
   local contents
   local roots
   local expected_root="$module.xcframework"
+  local expected_roots
   local relative_path
   local local_file
   local local_hash
   local zip_hash
 
   assert_file "$zip"
+  assert_file "$license"
   contents="$(zipinfo -1 "$zip")"
   roots="$(awk -F/ 'NF && $1 != "__MACOSX" { print $1 }' <<< "$contents" | sort -u)"
-  assert_equal "$roots" "$expected_root" "$zip top-level payload"
+  expected_roots="$(printf '%s\n' "$expected_root" LICENSE | sort)"
+  assert_equal "$roots" "$expected_roots" "$zip top-level payload"
+  local_hash="$(shasum -a 256 "$license" | awk '{ print $1 }')"
+  zip_hash="$(unzip -p "$zip" LICENSE | shasum -a 256 | awk '{ print $1 }')"
+  assert_equal "$zip_hash" "$local_hash" "$zip packaged LICENSE"
   awk -v expected="$expected_root/Info.plist" '
     $0 == expected { found = 1 }
     END { exit found ? 0 : 1 }
@@ -449,8 +456,8 @@ validate_optional_build_metadata "$simulator_metal_framework/Info.plist" iphones
 validate_metal_abi "$device_metal_framework/LiteRTMetalAccelerator"
 validate_metal_abi "$simulator_metal_framework/LiteRTMetalAccelerator"
 
-validate_zip "$artifact_directory/CLiteRT.xcframework.zip" CLiteRT
-validate_zip "$artifact_directory/LiteRTMetalAccelerator.xcframework.zip" LiteRTMetalAccelerator
+validate_zip "$artifact_directory/CLiteRT.xcframework.zip" CLiteRT "$repository_root/LICENSE"
+validate_zip "$artifact_directory/LiteRTMetalAccelerator.xcframework.zip" LiteRTMetalAccelerator "$repository_root/LICENSE"
 validate_cocoapods_zip "$artifact_directory/LiteRT.xcframeworks.zip" "$repository_root/LICENSE"
 
 printf '✅ LiteRT %s XCFrameworks in %s\n' "$litert_version" "$artifact_directory"

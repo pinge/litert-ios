@@ -170,6 +170,7 @@ plutil -replace DTSDKName -string "iphoneos${IOS_SDK_VERSION}" "$DEVICE_CLITERT_
 ditto -c -k --sequesterRsrc --keepParent \
   "$ARTIFACT_DIR/CLiteRT.xcframework" \
   "$ARTIFACT_DIR/CLiteRT.xcframework.zip"
+zip -q -j "$ARTIFACT_DIR/CLiteRT.xcframework.zip" "$REPOSITORY_ROOT/LICENSE"
 
 DEVICE_METAL_FRAMEWORK="$ARTIFACT_DIR/ios-arm64/LiteRTMetalAccelerator.framework"
 SIMULATOR_METAL_FRAMEWORK="$ARTIFACT_DIR/ios-arm64-simulator/LiteRTMetalAccelerator.framework"
@@ -184,6 +185,7 @@ xcodebuild -create-xcframework \
 ditto -c -k --sequesterRsrc --keepParent \
   "$ARTIFACT_DIR/LiteRTMetalAccelerator.xcframework" \
   "$ARTIFACT_DIR/LiteRTMetalAccelerator.xcframework.zip"
+zip -q -j "$ARTIFACT_DIR/LiteRTMetalAccelerator.xcframework.zip" "$REPOSITORY_ROOT/LICENSE"
 
 COCOAPODS_PACKAGE_DIR="$ARTIFACT_DIR/LiteRT"
 mkdir -p "$COCOAPODS_PACKAGE_DIR"
