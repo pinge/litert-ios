@@ -39,7 +39,7 @@ source_tag="$(git -C "$LITERT_SOURCE_DIR" describe --tags --exact-match HEAD)"
 [[ "$source_tag" == 'v2.2.0' ]] || fail "expected LiteRT tag v2.2.0, got $source_tag"
 
 SCRIPT_DIRECTORY="$(cd "$(dirname "$0")" && pwd)"
-REPOSITORY_ROOT="$(cd "$SCRIPT_DIRECTORY/../../.." && pwd)"
+REPOSITORY_ROOT="$(cd "$SCRIPT_DIRECTORY/../.." && pwd)"
 BUILD_OUTPUT_DIR="$REPOSITORY_ROOT/.build/litert-2.2.0-build"
 # The v2.2.0 tag predates Google's Metal refresh with the v2.2.0 outer accelerator ABI.
 METAL_COMMIT='c967bb4cd3253ae3e9e62f43ee66006e26966b25'
@@ -52,9 +52,7 @@ download_metal_library ios_arm64 "$DEVICE_METAL_SHA256"
 download_metal_library ios_sim_arm64 "$SIMULATOR_METAL_SHA256"
 
 cd "$LITERT_SOURCE_DIR"
-bazel version
-BAZEL_VERSION="$(bazel --version)"
-du -sh "$(bazel info output_base)" || true
+BAZEL_VERSION="$(bazel --version | awk '{ print $2 }')"
 
 bazel build -c opt //litert/swift:CLiteRT
 CLITERT_XCFRAMEWORK_ZIP="$BUILD_OUTPUT_DIR/CLiteRT.xcframework.zip"
@@ -65,7 +63,6 @@ if [[ -n "${GITHUB_ENV:-}" ]]; then
   printf 'LITERT_METAL_COMMIT=%s\n' "$METAL_COMMIT" >> "$GITHUB_ENV"
 fi
 
-du -sh "$(bazel info output_base)" "$BUILD_OUTPUT_DIR"
 printf 'CLiteRT XCFramework: %s\n' "$CLITERT_XCFRAMEWORK_ZIP"
 printf 'Metal device dylib: %s\n' "$BUILD_OUTPUT_DIR/ios_arm64/libLiteRtMetalAccelerator.dylib"
 printf 'Metal Simulator dylib: %s\n' "$BUILD_OUTPUT_DIR/ios_sim_arm64/libLiteRtMetalAccelerator.dylib"

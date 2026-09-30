@@ -142,7 +142,7 @@ make_metal_framework() {
 [[ "${LITERT_VERSION:-}" == '2.2.0' ]] || fail 'LITERT_VERSION must be 2.2.0'
 
 SCRIPT_DIRECTORY="$(cd "$(dirname "$0")" && pwd)"
-REPOSITORY_ROOT="$(cd "$SCRIPT_DIRECTORY/../../.." && pwd)"
+REPOSITORY_ROOT="$(cd "$SCRIPT_DIRECTORY/../.." && pwd)"
 BUILD_OUTPUT_DIR="$REPOSITORY_ROOT/.build/litert-2.2.0-build"
 ARTIFACT_DIR="$REPOSITORY_ROOT/.build/litert-2.2.0-artifacts-$(date +%Y%m%dT%H%M%S)"
 CLITERT_XCFRAMEWORK_ZIP="$BUILD_OUTPUT_DIR/CLiteRT.xcframework.zip"

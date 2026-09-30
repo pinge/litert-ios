@@ -43,7 +43,7 @@ LITERT_SOURCE_DIR="${LITERT_SOURCE_DIR:?LITERT_SOURCE_DIR is required}"
 [[ -d "$LITERT_SOURCE_DIR/.git" ]] || fail "LiteRT checkout not found: $LITERT_SOURCE_DIR"
 
 SCRIPT_DIRECTORY="$(cd "$(dirname "$0")" && pwd)"
-REPOSITORY_ROOT="$(cd "$SCRIPT_DIRECTORY/../../.." && pwd)"
+REPOSITORY_ROOT="$(cd "$SCRIPT_DIRECTORY/../.." && pwd)"
 ARTIFACT_DIR="$REPOSITORY_ROOT/.build/litert-2.1.6-artifacts-$(date +%Y%m%dT%H%M%S)"
 CLITERT_XCFRAMEWORK_ZIP="$LITERT_SOURCE_DIR/bazel-bin/litert/swift/CLiteRT.xcframework.zip"
 DEVICE_METAL_LIBRARY="$LITERT_SOURCE_DIR/litert/prebuilt/ios_arm64/libLiteRtMetalAccelerator.dylib"

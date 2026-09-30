@@ -17,7 +17,7 @@ assert_command() {
 LITERT_SOURCE_DIR="${LITERT_SOURCE_DIR:?LITERT_SOURCE_DIR is required}"
 [[ -d "$LITERT_SOURCE_DIR/.git" ]] || fail "LiteRT checkout not found: $LITERT_SOURCE_DIR"
 
-for required_command in bazel du file git git-lfs ls; do
+for required_command in bazel git git-lfs; do
   assert_command "$required_command"
 done
 
@@ -34,18 +34,12 @@ DEVICE_METAL_LIBRARY='litert/prebuilt/ios_arm64/libLiteRtMetalAccelerator.dylib'
 SIMULATOR_METAL_LIBRARY='litert/prebuilt/ios_sim_arm64/libLiteRtMetalAccelerator.dylib'
 [[ -f "$DEVICE_METAL_LIBRARY" ]] || fail "missing file: $DEVICE_METAL_LIBRARY"
 [[ -f "$SIMULATOR_METAL_LIBRARY" ]] || fail "missing file: $SIMULATOR_METAL_LIBRARY"
-ls -lh "$DEVICE_METAL_LIBRARY" "$SIMULATOR_METAL_LIBRARY"
-file "$DEVICE_METAL_LIBRARY" "$SIMULATOR_METAL_LIBRARY"
-
-bazel version
-BAZEL_VERSION="$(bazel --version)"
+BAZEL_VERSION="$(bazel --version | awk '{ print $2 }')"
 if [[ -n "${GITHUB_ENV:-}" ]]; then
   printf 'BAZEL_VERSION=%s\n' "$BAZEL_VERSION" >> "$GITHUB_ENV"
 fi
 
-du -sh "$(bazel info output_base)" || true
 bazel build -c opt //litert/swift:CLiteRT
-du -sh "$(bazel info output_base)"
 
 CLITERT_XCFRAMEWORK_ZIP="$LITERT_SOURCE_DIR/bazel-bin/litert/swift/CLiteRT.xcframework.zip"
 [[ -f "$CLITERT_XCFRAMEWORK_ZIP" ]] || fail "missing file: $CLITERT_XCFRAMEWORK_ZIP"
