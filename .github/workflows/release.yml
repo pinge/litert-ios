@@ -1,0 +1,138 @@
+name: 🏷️ Release LiteRT
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      artifact_name:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  LITERT_VERSION: ${{ inputs.version }}
+  LITERT_REPOSITORY: https://github.com/google-ai-edge/LiteRT.git
+
+jobs:
+  release:
+    name: Release ${{ inputs.version }}
+    runs-on: macos-26
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Download LiteRT Artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/litert-artifacts
+
+      - name: Commit Manifests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          ditto "$RUNNER_TEMP/litert-artifacts/LiteRT.podspec" LiteRT.podspec
+          ditto "$RUNNER_TEMP/litert-artifacts/Package.swift" Package.swift
+          EXPECTED_HEAD="$(git rev-parse HEAD)"
+          git add LiteRT.podspec Package.swift
+
+          if git diff --cached --quiet -- LiteRT.podspec Package.swift; then
+            echo "PACKAGE_COMMIT=$EXPECTED_HEAD" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          git diff --cached --check -- LiteRT.podspec Package.swift
+          PODSPEC_CONTENT="$(base64 < LiteRT.podspec | tr -d '\n')"
+          PACKAGE_CONTENT="$(base64 < Package.swift | tr -d '\n')"
+          QUERY='mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid signature { isValid wasSignedByGitHub } } } }'
+          REQUEST="$(
+            jq -n \
+              --arg query "$QUERY" \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg branch "$GITHUB_REF_NAME" \
+              --arg head "$EXPECTED_HEAD" \
+              --arg message "build: LiteRT v${LITERT_VERSION}" \
+              --arg podspec "$PODSPEC_CONTENT" \
+              --arg package "$PACKAGE_CONTENT" \
+              '{
+                query: $query,
+                variables: {
+                  input: {
+                    branch: {
+                      repositoryNameWithOwner: $repository,
+                      branchName: $branch
+                    },
+                    expectedHeadOid: $head,
+                    message: {
+                      headline: $message
+                    },
+                    fileChanges: {
+                      additions: [
+                        {
+                          path: "LiteRT.podspec",
+                          contents: $podspec
+                        },
+                        {
+                          path: "Package.swift",
+                          contents: $package
+                        }
+                      ]
+                    }
+                  }
+                }
+              }'
+          )"
+          RESPONSE="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --request POST \
+              --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "$REQUEST" \
+              https://api.github.com/graphql
+          )"
+
+          if ! PACKAGE_COMMIT="$(jq -er '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"; then
+            jq . <<< "$RESPONSE" >&2
+            exit 1
+          fi
+          if ! jq -e \
+            '.data.createCommitOnBranch.commit.signature | .isValid == true and .wasSignedByGitHub == true' \
+            <<< "$RESPONSE" >/dev/null; then
+            echo "GitHub did not return a valid signed commit" >&2
+            jq . <<< "$RESPONSE" >&2
+            exit 1
+          fi
+
+          echo "PACKAGE_COMMIT=$PACKAGE_COMMIT" >> "$GITHUB_ENV"
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP/litert-artifacts"
+          shasum -a 256 -c SHA256SUMS
+          gh release create "v${LITERT_VERSION}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "$PACKAGE_COMMIT" \
+            --title "v${LITERT_VERSION}" \
+            --notes "📖 LiteRT v${LITERT_VERSION} for iOS"$'\n'"📦️ Built from ${LITERT_REPOSITORY%.git}/releases/tag/v${LITERT_VERSION}"$'\n'"📝 See LiteRT-v${LITERT_VERSION}.json and verify with SHA256SUMS" \
+            CLiteRT.xcframework.zip \
+            LiteRTMetalAccelerator.xcframework.zip \
+            LiteRT.xcframeworks.zip \
+            "LiteRT-v${LITERT_VERSION}.json" \
+            SHA256SUMS
