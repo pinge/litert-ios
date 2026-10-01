@@ -3,6 +3,20 @@ import Foundation
 
 enum LiteRTRunner {
   static func runOnCPU() throws -> [Float] {
+    try run(
+      with: LiteRtHwAcceleratorSet(kLiteRtHwAcceleratorCpu.rawValue)
+    )
+  }
+
+  static func runOnMetal() throws -> [Float] {
+    try run(
+      with: LiteRtHwAcceleratorSet(kLiteRtHwAcceleratorGpu.rawValue)
+    )
+  }
+
+  private static func run(
+    with hardwareAccelerators: LiteRtHwAcceleratorSet
+  ) throws -> [Float] {
     guard let modelData = Data(
       base64Encoded: addModelBase64,
       options: .ignoreUnknownCharacters
@@ -50,9 +64,9 @@ enum LiteRTRunner {
       try validate(
         LiteRtSetOptionsHardwareAccelerators(
           options,
-          LiteRtHwAcceleratorSet(kLiteRtHwAcceleratorCpu.rawValue)
+          hardwareAccelerators
         ),
-        operation: "Select CPU"
+        operation: "Select hardware accelerator"
       )
 
       var compiledModel: LiteRtCompiledModel?

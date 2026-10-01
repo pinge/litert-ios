@@ -1,6 +1,7 @@
 import CLiteRT
 import Darwin
 import XCTest
+@testable import LiteRTExample
 
 private typealias GetNumAccelerators = @convention(c) (
   LiteRtEnvironment?,
@@ -20,26 +21,46 @@ private typealias GetAcceleratorHardwareSupport = @convention(c) (
 
 final class MetalRegistrationTests: XCTestCase {
   func testMetalAcceleratorRegistersWithLiteRT() throws {
-    let process = try XCTUnwrap(dlopen(nil, RTLD_NOW))
-    let acceleratorDefinition = try symbol("LiteRtAcceleratorImpl", in: process)
-    let registration = try symbol(
-      "LiteRtStaticLinkedAcceleratorGpuDef",
-      in: process
-    ).assumingMemoryBound(
-      to: UnsafeMutableRawPointer?.self
-    )
-    let previousDefinition = registration.pointee
-    registration.pointee = acceleratorDefinition
-    defer { registration.pointee = previousDefinition }
+    try withRegisteredMetalAccelerator { process in
+      let environment = try createEnvironment()
+      defer { LiteRtDestroyEnvironment(environment) }
 
-    let environment = try createEnvironment()
-    defer { LiteRtDestroyEnvironment(environment) }
-
-    XCTAssertTrue(
-      try hasRegisteredGPU(in: environment, process: process),
-      "Metal accelerator was not registered"
-    )
+      XCTAssertTrue(
+        try hasRegisteredGPU(in: environment, process: process),
+        "Metal accelerator was not registered"
+      )
+    }
   }
+}
+
+final class MetalInferenceTests: XCTestCase {
+  func testAddModelRunsOnMetal() throws {
+    #if targetEnvironment(simulator)
+      throw XCTSkip("Metal inference requires a physical iOS device")
+    #else
+      try withRegisteredMetalAccelerator { _ in
+        XCTAssertEqual(try LiteRTRunner.runOnMetal(), [3, 9])
+      }
+    #endif
+  }
+}
+
+private func withRegisteredMetalAccelerator<T>(
+  _ operation: (UnsafeMutableRawPointer) throws -> T
+) throws -> T {
+  let process = try XCTUnwrap(dlopen(nil, RTLD_NOW))
+  let acceleratorDefinition = try symbol("LiteRtAcceleratorImpl", in: process)
+  let registration = try symbol(
+    "LiteRtStaticLinkedAcceleratorGpuDef",
+    in: process
+  ).assumingMemoryBound(
+    to: UnsafeMutableRawPointer?.self
+  )
+  let previousDefinition = registration.pointee
+  registration.pointee = acceleratorDefinition
+  defer { registration.pointee = previousDefinition }
+
+  return try operation(process)
 }
 
 private func createEnvironment() throws -> LiteRtEnvironment {

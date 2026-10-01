@@ -15,7 +15,7 @@ on:
           - "2.1.6"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: litert-release
@@ -64,6 +64,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         if: steps.check.outputs.exists != 'true'
+        with:
+          persist-credentials: false
 
       - name: Xcode Select
         if: steps.check.outputs.exists != 'true'
@@ -239,10 +241,13 @@ jobs:
             ${{ env.ARTIFACT_DIR }}/Package.swift
           if-no-files-found: error
 
-  integration-tests:
+  test:
     name: 🧩 ${{ inputs.version }}
     needs: build
     if: needs.build.outputs.release_exists != 'true'
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/integration-tests.yml
     with:
       version: ${{ inputs.version }}
@@ -252,19 +257,23 @@ jobs:
     name: 🏷️ release ${{ inputs.version }}
     needs:
       - build
-      - integration-tests
+      - test
     if: needs.build.outputs.release_exists != 'true'
     runs-on: macos-26
     timeout-minutes: 30
+    permissions:
+      contents: write
     defaults:
       run:
         shell: bash -eo pipefail {0}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Download LiteRT Artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: litert-v${{ inputs.version }}
           path: ${{ runner.temp }}/litert-artifacts

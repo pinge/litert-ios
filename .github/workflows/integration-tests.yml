@@ -34,8 +34,8 @@ env:
   XCODE_VERSION: "26.6"
 
 jobs:
-  package-managers:
-    name: ${{ matrix.package_manager }}
+  simulator-package-managers:
+    name: 🕹️ ${{ matrix.package_manager }}
     runs-on: macos-26
     timeout-minutes: 30
     strategy:
@@ -47,10 +47,12 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Download LiteRT Artifacts
         if: inputs.artifact_name != ''
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ inputs.artifact_name }}
           path: ${{ runner.temp }}/litert-artifacts
@@ -68,8 +70,8 @@ jobs:
   # GitHub images retain only three runtime versions, explicitly installing each target is required.
   # iOS 16 coverage ends when GitHub removes macos-26 or Xcode 26.
   # See https://github.com/actions/runner-images#support-policy
-  ios-runtimes:
-    name: ios ${{ matrix.ios_runtime }}
+  simulator-ios-runtimes:
+    name: 🕹️ ios ${{ matrix.ios_runtime }}
     runs-on: macos-26
     timeout-minutes: 90
     strategy:
@@ -83,10 +85,12 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Download LiteRT Artifacts
         if: inputs.artifact_name != ''
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ inputs.artifact_name }}
           path: ${{ runner.temp }}/litert-artifacts
@@ -121,3 +125,118 @@ jobs:
 
       - name: Integration Tests
         run: Tests/test-integration.sh simulator "${{ inputs.version }}" swiftpm
+
+  device-package-managers:
+    name: 📲 ${{ matrix.version }} ${{ matrix.package_manager }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment: aws-device-farm
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - "2.1.6"
+          - "2.2.0"
+        package_manager:
+          - swiftpm
+          - cocoapods
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Download LiteRT Artifacts
+        if: inputs.artifact_name != '' && matrix.version == inputs.version
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/litert-artifacts
+
+      - name: LiteRT Artifact Directory
+        if: inputs.artifact_name != '' && matrix.version == inputs.version
+        run: echo "LITERT_ARTIFACT_DIR=$RUNNER_TEMP/litert-artifacts" >> "$GITHUB_ENV"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+
+      - name: AWS Device Farm
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ secrets.AWS_DEVICE_FARM_ROLE_ARN }}
+          allowed-account-ids: ${{ secrets.AWS_ACCOUNT_ID }}
+          mask-aws-account-id: true
+          output-credentials: false
+          unset-current-credentials: true
+          translate-env-variables: false
+
+      - name: Integration Tests
+        env:
+          DEVICE_FARM_PROJECT_ARN: ${{ secrets.AWS_DEVICE_FARM_PROJECT_ARN }}
+          DEVICE_FARM_DEVICE_NAME: Apple iPhone 17 Pro
+          DEVICE_FARM_OS_VERSION: "26.3.1"
+        run: Tests/test-integration.sh device "${{ matrix.version }}" "${{ matrix.package_manager }}"
+
+  device-ios-runtimes:
+    name: 📲 ios ${{ matrix.ios_runtime }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment: aws-device-farm
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: Apple iPhone SE (2022)
+            ios_runtime: "16.4"
+          - device: Apple iPhone 12
+            ios_runtime: "17.5.1"
+          - device: Apple iPhone 16
+            ios_runtime: "18.6.2"
+          - device: Apple iPhone 12
+            ios_runtime: "26.6"
+          - device: Apple iPhone 14 Pro
+            ios_runtime: "27.0"
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Download LiteRT Artifacts
+        if: inputs.artifact_name != ''
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/litert-artifacts
+
+      - name: LiteRT Artifact Directory
+        if: inputs.artifact_name != ''
+        run: echo "LITERT_ARTIFACT_DIR=$RUNNER_TEMP/litert-artifacts" >> "$GITHUB_ENV"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+
+      - name: AWS Device Farm
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ secrets.AWS_DEVICE_FARM_ROLE_ARN }}
+          allowed-account-ids: ${{ secrets.AWS_ACCOUNT_ID }}
+          mask-aws-account-id: true
+          output-credentials: false
+          unset-current-credentials: true
+          translate-env-variables: false
+
+      - name: Integration Tests
+        env:
+          DEVICE_FARM_PROJECT_ARN: ${{ secrets.AWS_DEVICE_FARM_PROJECT_ARN }}
+          DEVICE_FARM_DEVICE_NAME: ${{ matrix.device }}
+          DEVICE_FARM_OS_VERSION: ${{ matrix.ios_runtime }}
+        run: Tests/test-integration.sh device "${{ inputs.version }}" swiftpm
