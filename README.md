@@ -4,15 +4,15 @@ LiteRT iOS XCFrameworks for Swift Package Manager and CocoaPods.
 
 ## Why this package
 
-Google distributes LiteRT 2.1.6 and 2.2.0 with the iOS Metal accelerator as a standalone dynamic library (`.dylib`), but iOS <a href="https://developer.apple.com/documentation/bundleresources/placing-content-in-a-bundle#Place-content-based-on-type-and-platform" target="_blank" rel="noopener noreferrer">does not support</a> third-party standalone dynamic libraries. The CLiteRT XCFramework <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.1.6/litert/swift/BUILD#L108-L130" target="_blank" rel="noopener noreferrer">build target</a> generates device frameworks with Simulator metadata, and 2.2.0 ships an <a href="#litert-220-metal-abi-header" target="_blank" rel="noopener noreferrer">incompatible</a> Metal accelerator ABI.
+Google distributes LiteRT 2.1.6 and 2.2.0 with the iOS Metal accelerator as a standalone dynamic library (`.dylib`), but iOS [does not support](https://developer.apple.com/documentation/bundleresources/placing-content-in-a-bundle#Place-content-based-on-type-and-platform) third-party standalone dynamic libraries. The CLiteRT XCFramework [build target](https://github.com/google-ai-edge/LiteRT/blob/v2.1.6/litert/swift/BUILD#L108-L130) generates device frameworks with Simulator metadata, and 2.2.0 ships an [incompatible](#litert-220-metal-abi-header) Metal accelerator ABI.
 
 This distribution:
 
-- <a href="ci/2.1.6/package-litert-xcframeworks-2.1.6.sh#L65-L68" target="_blank" rel="noopener noreferrer">rewrites</a> the device metadata
-- <a href="ci/2.1.6/validate-litert-xcframeworks-2.1.6.sh#L138-L168" target="_blank" rel="noopener noreferrer">validates</a> the platform and SDK values for both variants
-- <a href="ci/2.2.0/package-litert-xcframeworks-2.2.0.sh#L91-L110" target="_blank" rel="noopener noreferrer">corrects</a> the nested <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_custom_tensor_buffer_handlers_def.h#L29-L54" target="_blank" rel="noopener noreferrer">custom buffer</a> ABI header in LiteRT 2.2.0
-- <a href="ci/2.2.0/build-litert-2.2.0.sh#L44-L52" target="_blank" rel="noopener noreferrer">uses</a> a prebuilt <a href="https://github.com/google-ai-edge/LiteRT/blob/c967bb4cd3253ae3e9e62f43ee66006e26966b25/litert/prebuilt/ios_arm64/libLiteRtMetalAccelerator.dylib" target="_blank" rel="noopener noreferrer">post 2.2.0</a> Metal accelerator `.dylib` with the updated ABI for LiteRT 2.2.0
-- <a href="ci/2.1.6/package-litert-xcframeworks-2.1.6.sh#L12-L39" target="_blank" rel="noopener noreferrer">repackages</a> the Metal accelerator dynamic library as a dynamic `.framework`
+- [rewrites](ci/2.1.6/package-litert-xcframeworks-2.1.6.sh#L65-L67) the device metadata
+- [validates](ci/2.1.6/validate-litert-xcframeworks-2.1.6.sh#L138-L168) the platform and SDK values for both variants
+- [corrects](ci/2.2.0/package-litert-xcframeworks-2.2.0.sh#L91-L110) the nested [custom buffer](https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_custom_tensor_buffer_handlers_def.h#L29-L54) ABI header in LiteRT 2.2.0
+- [uses](ci/2.2.0/build-litert-2.2.0.sh#L44-L52) a prebuilt [post 2.2.0](https://github.com/google-ai-edge/LiteRT/compare/v2.2.0...c967bb4cd3253ae3e9e62f43ee66006e26966b25) Metal accelerator `.dylib` with the updated ABI for LiteRT 2.2.0
+- [repackages](ci/2.1.6/package-litert-xcframeworks-2.1.6.sh#L12-L39) the Metal accelerator dynamic library as a dynamic `.framework`
 
 Use this package:
 
@@ -127,7 +127,7 @@ CocoaPods
 
 ## LiteRT 2.2.0 Metal ABI Header
 
-The LiteRT 2.2.0 tagged Metal accelerator dynamic libraries for <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/prebuilt/ios_arm64/libLiteRtMetalAccelerator.dylib" target="_blank" rel="noopener noreferrer">device</a> and <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/prebuilt/ios_sim_arm64/libLiteRtMetalAccelerator.dylib" target="_blank" rel="noopener noreferrer">Simulator</a> begin `_LiteRtAcceleratorImpl` with `01 00 00 00 00 00 00 00`, while the release's <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_accelerator_def.h#L29-L75" target="_blank" rel="noopener noreferrer">accelerator definition</a> and <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_abi_header.h#L25-L44" target="_blank" rel="noopener noreferrer">ABI header layout</a> require `c8 00 01 00 00 00 00 00` (`200`, `1`, `0`, `0` as little-endian `uint16_t` values).
+The LiteRT 2.2.0 tagged Metal accelerator dynamic libraries for [device](https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/prebuilt/ios_arm64/libLiteRtMetalAccelerator.dylib) and [Simulator](https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/prebuilt/ios_sim_arm64/libLiteRtMetalAccelerator.dylib) begin `_LiteRtAcceleratorImpl` with `01 00 00 00 00 00 00 00`, while the release's [accelerator definition](https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_accelerator_def.h#L29-L75) and [ABI header layout](https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_abi_header.h#L25-L44) require `c8 00 01 00 00 00 00 00` (`200`, `1`, `0`, `0` as little-endian `uint16_t` values).
 
 ```bash
 for platform in ios_arm64 ios_sim_arm64; do
@@ -217,14 +217,14 @@ ios-arm64-simulator buffer handlers: 88 00 01 00 00 00 00 00
 
 ## License
 
-LiteRT and these binary distributions are licensed under <a href="LICENSE" target="_blank" rel="noopener noreferrer">Apache License 2.0</a>.
+LiteRT and these binary distributions are licensed under [Apache License 2.0](LICENSE).
 
 This repository is not an official Google distribution.
 
 ## References
 
-- <a href="https://github.com/google-ai-edge/LiteRT" target="_blank" rel="noopener noreferrer">https://github.com/google-ai-edge/LiteRT</a>
-- LiteRT v2.2.0 <a href="https://github.com/google-ai-edge/LiteRT/releases/tag/v2.2.0" target="_blank" rel="noopener noreferrer">release notes</a>
-- LiteRT v2.2.0 <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_accelerator_def.h#L27-L70" target="_blank" rel="noopener noreferrer">accelerator ABI</a> and <a href="https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_custom_tensor_buffer_handlers_def.h#L28-L55" target="_blank" rel="noopener noreferrer">custom buffer ABI</a>
-- <a href="https://github.com/google-ai-edge/LiteRT/issues/8787" target="_blank" rel="noopener noreferrer">Issue #8787 - LiteRtMetalAccelerator cannot be registered on iphone</a>
-- <a href="https://github.com/google-ai-edge/LiteRT-LM/issues/2151" target="_blank" rel="noopener noreferrer">Issue #2151 - Apple Mach-O bundling: companion dylibs lack -headerpad_max_install_names; gpu_registry/sampler_factory dlopen by basename incompatible with .framework bundling (App Store ITMS-90432)</a>
+- <https://github.com/google-ai-edge/LiteRT>
+- LiteRT v2.2.0 [release notes](https://github.com/google-ai-edge/LiteRT/releases/tag/v2.2.0)
+- LiteRT v2.2.0 [accelerator ABI](https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_accelerator_def.h#L27-L70) and [custom buffer ABI](https://github.com/google-ai-edge/LiteRT/blob/v2.2.0/litert/c/internal/litert_custom_tensor_buffer_handlers_def.h#L28-L55)
+- [Issue #8787 - LiteRtMetalAccelerator cannot be registered on iphone](https://github.com/google-ai-edge/LiteRT/issues/8787)
+- [Issue #2151 - Apple Mach-O bundling: companion dylibs lack -headerpad_max_install_names; gpu_registry/sampler_factory dlopen by basename incompatible with .framework bundling (App Store ITMS-90432)](https://github.com/google-ai-edge/LiteRT-LM/issues/2151)
