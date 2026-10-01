@@ -35,7 +35,7 @@ env:
 
 jobs:
   package-managers:
-    name: LiteRT ${{ inputs.version }} - ${{ matrix.package_manager }}
+    name: ${{ matrix.package_manager }}
     runs-on: macos-26
     timeout-minutes: 30
     strategy:
@@ -46,7 +46,7 @@ jobs:
           - cocoapods
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Download LiteRT Artifacts
         if: inputs.artifact_name != ''
@@ -69,7 +69,7 @@ jobs:
   # iOS 16 coverage ends when GitHub removes macos-26 or Xcode 26.
   # See https://github.com/actions/runner-images#support-policy
   ios-runtimes:
-    name: LiteRT ${{ inputs.version }} - iOS ${{ matrix.ios_runtime }}
+    name: ios ${{ matrix.ios_runtime }}
     runs-on: macos-26
     timeout-minutes: 90
     strategy:
@@ -82,7 +82,7 @@ jobs:
           - "26.5"
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Download LiteRT Artifacts
         if: inputs.artifact_name != ''

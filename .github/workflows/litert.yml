@@ -28,6 +28,7 @@ env:
 
 jobs:
   build:
+    name: 📖 build ${{ inputs.version }}
     runs-on: macos-26
     timeout-minutes: 360
     outputs:
@@ -61,7 +62,7 @@ jobs:
         run: echo "Release v${LITERT_VERSION} already exists."
 
       - name: Checkout Repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         if: steps.check.outputs.exists != 'true'
 
       - name: Xcode Select
@@ -225,7 +226,7 @@ jobs:
 
       - name: Upload LiteRT Artifacts
         if: steps.check.outputs.exists != 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: litert-v${{ inputs.version }}
           path: |
@@ -239,6 +240,7 @@ jobs:
           if-no-files-found: error
 
   integration-tests:
+    name: 🧩 ${{ inputs.version }}
     needs: build
     if: needs.build.outputs.release_exists != 'true'
     uses: ./.github/workflows/integration-tests.yml
@@ -247,6 +249,7 @@ jobs:
       artifact_name: litert-v${{ inputs.version }}
 
   release:
+    name: 🏷️ release ${{ inputs.version }}
     needs:
       - build
       - integration-tests
@@ -258,7 +261,7 @@ jobs:
         shell: bash -eo pipefail {0}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Download LiteRT Artifacts
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
