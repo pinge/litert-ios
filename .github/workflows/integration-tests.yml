@@ -67,7 +67,10 @@ jobs:
       - name: Install Simulator Runtime
         env:
           IOS_RUNTIME: ${{ matrix.ios_runtime }}
-        run: xcodebuild -downloadPlatform iOS -buildVersion "$IOS_RUNTIME"
+        run: |
+          # https://github.com/actions/runner-images/issues/12862#issuecomment-3209385688
+          xcrun simctl list > /dev/null
+          xcodebuild -downloadPlatform iOS -buildVersion "$IOS_RUNTIME" -architectureVariant arm64
 
       - name: Create Simulator
         env:
