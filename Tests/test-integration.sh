@@ -9,9 +9,24 @@ LITERT_VERSION="${2:-2.1.6}"
 PACKAGE_MANAGER="${3:-swiftpm}"
 SIMULATOR_NAME="${SIMULATOR_NAME:-iPhone 17 Pro}"
 SIMULATOR_ID="${SIMULATOR_ID:-}"
+LITERT_ARTIFACT_DIR="${LITERT_ARTIFACT_DIR:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [[ -n "$LITERT_ARTIFACT_DIR" ]]; then
+  LITERT_ARTIFACT_DIR="$(cd "$LITERT_ARTIFACT_DIR" && pwd)"
+  for archive in \
+    CLiteRT.xcframework.zip \
+    LiteRTMetalAccelerator.xcframework.zip \
+    LiteRT.xcframeworks.zip \
+    LiteRT.podspec; do
+    if [[ ! -f "$LITERT_ARTIFACT_DIR/$archive" ]]; then
+      echo "Missing LiteRT artifact: $LITERT_ARTIFACT_DIR/$archive" >&2
+      exit 1
+    fi
+  done
+fi
 
 if [[ "$#" -gt 3 ]]; then
   echo "Usage: $0 [simulator|device] [litert_version] [swiftpm|cocoapods]" >&2
@@ -56,22 +71,61 @@ ditto "$REPOSITORY_ROOT/Tests/Integration" "$TEST_WORKSPACE/Tests/Integration"
 EXAMPLE_DIRECTORY="$TEST_WORKSPACE/Examples/$EXAMPLE"
 if [[ "$PACKAGE_MANAGER" == swiftpm ]]; then
   PROJECT_FILE="$EXAMPLE_DIRECTORY/LiteRTExample.xcodeproj/project.pbxproj"
-  VERSION_COUNT="$(grep -Ec '^[[:space:]]*version = [0-9]+\.[0-9]+\.[0-9]+;$' "$PROJECT_FILE")"
-  if [[ "$VERSION_COUNT" -ne 1 ]]; then
-    echo "Expected one exact Swift package version in $PROJECT_FILE" >&2
-    exit 1
-  fi
+  if [[ -n "$LITERT_ARTIFACT_DIR" ]]; then
+    LOCAL_PACKAGE_DIRECTORY="$EXAMPLE_DIRECTORY/LiteRT"
+    mkdir -p "$LOCAL_PACKAGE_DIRECTORY"
+    ditto -x -k \
+      "$LITERT_ARTIFACT_DIR/CLiteRT.xcframework.zip" \
+      "$LOCAL_PACKAGE_DIRECTORY"
+    ditto -x -k \
+      "$LITERT_ARTIFACT_DIR/LiteRTMetalAccelerator.xcframework.zip" \
+      "$LOCAL_PACKAGE_DIRECTORY"
+    ditto \
+      "$REPOSITORY_ROOT/Tests/Integration/LocalPackage.swift" \
+      "$LOCAL_PACKAGE_DIRECTORY/Package.swift"
+    perl -0pi -e \
+      's{/\* Begin XCRemoteSwiftPackageReference section \*/.*?/\* End XCRemoteSwiftPackageReference section \*/}{/\* Begin XCLocalSwiftPackageReference section \*/\n\t\tA00000000000000000000001 /\* XCLocalSwiftPackageReference "LiteRT" \*/ = {\n\t\t\tisa = XCLocalSwiftPackageReference;\n\t\t\trelativePath = LiteRT;\n\t\t};\n/\* End XCLocalSwiftPackageReference section \*/}s' \
+      "$PROJECT_FILE"
+    sed -i '' \
+      's/XCRemoteSwiftPackageReference "litert-ios"/XCLocalSwiftPackageReference "LiteRT"/g' \
+      "$PROJECT_FILE"
+    grep -q 'isa = XCLocalSwiftPackageReference;' "$PROJECT_FILE"
+    if grep -q 'XCRemoteSwiftPackageReference' "$PROJECT_FILE"; then
+      echo "Failed to replace the remote Swift package reference" >&2
+      exit 1
+    fi
+  else
+    VERSION_COUNT="$(grep -Ec '^[[:space:]]*version = [0-9]+\.[0-9]+\.[0-9]+;$' "$PROJECT_FILE")"
+    if [[ "$VERSION_COUNT" -ne 1 ]]; then
+      echo "Expected one exact Swift package version in $PROJECT_FILE" >&2
+      exit 1
+    fi
 
-  sed -i '' -E \
-    "s/^([[:space:]]*version = )[0-9]+\.[0-9]+\.[0-9]+;$/\1${LITERT_VERSION};/" \
-    "$PROJECT_FILE"
+    sed -i '' -E \
+      "s/^([[:space:]]*version = )[0-9]+\.[0-9]+\.[0-9]+;$/\1${LITERT_VERSION};/" \
+      "$PROJECT_FILE"
+  fi
   XCODE_CONTAINER_FLAG=-project
   XCODE_CONTAINER="$EXAMPLE_DIRECTORY/LiteRTExample.xcodeproj"
 else
-  (
-    cd "$EXAMPLE_DIRECTORY"
-    LITERT_VERSION="$LITERT_VERSION" pod install
-  )
+  if [[ -n "$LITERT_ARTIFACT_DIR" ]]; then
+    LOCAL_POD_DIRECTORY="$EXAMPLE_DIRECTORY/LiteRT"
+    mkdir -p "$LOCAL_POD_DIRECTORY"
+    ditto -x -k \
+      "$LITERT_ARTIFACT_DIR/LiteRT.xcframeworks.zip" \
+      "$LOCAL_POD_DIRECTORY"
+    ditto "$LITERT_ARTIFACT_DIR/LiteRT.podspec" "$LOCAL_POD_DIRECTORY/LiteRT.podspec"
+    ditto "$REPOSITORY_ROOT/LICENSE" "$LOCAL_POD_DIRECTORY/LICENSE"
+    (
+      cd "$EXAMPLE_DIRECTORY"
+      LITERT_PATH="$LOCAL_POD_DIRECTORY" pod install
+    )
+  else
+    (
+      cd "$EXAMPLE_DIRECTORY"
+      LITERT_VERSION="$LITERT_VERSION" pod install
+    )
+  fi
   XCODE_CONTAINER_FLAG=-workspace
   XCODE_CONTAINER="$EXAMPLE_DIRECTORY/LiteRTExample.xcworkspace"
 fi

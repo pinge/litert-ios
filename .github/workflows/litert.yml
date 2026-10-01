@@ -27,9 +27,11 @@ env:
   XCODE_VERSION: "26.1.1"
 
 jobs:
-  build-release:
+  build:
     runs-on: macos-26
     timeout-minutes: 360
+    outputs:
+      release_exists: ${{ steps.check.outputs.exists }}
     env:
       LITERT_SOURCE_DIR: ${{ github.workspace }}/.build/litert-${{ inputs.version }}-source
     defaults:
@@ -159,7 +161,7 @@ jobs:
       - name: LiteRT.podspec
         if: steps.check.outputs.exists != 'true'
         run: |
-          cat > LiteRT.podspec <<EOF
+          cat > "$ARTIFACT_DIR/LiteRT.podspec" <<EOF
           Pod::Spec.new do |spec|
             spec.name = 'LiteRT'
             spec.version = '${LITERT_VERSION}'
@@ -179,12 +181,12 @@ jobs:
             ]
           end
           EOF
-          pod ipc spec LiteRT.podspec >/dev/null
+          pod ipc spec "$ARTIFACT_DIR/LiteRT.podspec" >/dev/null
 
       - name: Package.swift
         if: steps.check.outputs.exists != 'true'
         run: |
-          cat > Package.swift <<EOF
+          cat > "$ARTIFACT_DIR/Package.swift" <<EOF
           // swift-tools-version: 5.9
 
           import PackageDescription
@@ -219,13 +221,57 @@ jobs:
             ]
           )
           EOF
-          swift package dump-package >/dev/null
+          swift package --package-path "$ARTIFACT_DIR" dump-package >/dev/null
+
+      - name: Upload LiteRT Artifacts
+        if: steps.check.outputs.exists != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: litert-v${{ inputs.version }}
+          path: |
+            ${{ env.ARTIFACT_DIR }}/CLiteRT.xcframework.zip
+            ${{ env.ARTIFACT_DIR }}/LiteRTMetalAccelerator.xcframework.zip
+            ${{ env.ARTIFACT_DIR }}/LiteRT.xcframeworks.zip
+            ${{ env.ARTIFACT_DIR }}/LiteRT-v${{ inputs.version }}.json
+            ${{ env.ARTIFACT_DIR }}/SHA256SUMS
+            ${{ env.ARTIFACT_DIR }}/LiteRT.podspec
+            ${{ env.ARTIFACT_DIR }}/Package.swift
+          if-no-files-found: error
+
+  integration-tests:
+    needs: build
+    if: needs.build.outputs.release_exists != 'true'
+    uses: ./.github/workflows/integration-tests.yml
+    with:
+      version: ${{ inputs.version }}
+      artifact_name: litert-v${{ inputs.version }}
+
+  release:
+    needs:
+      - build
+      - integration-tests
+    if: needs.build.outputs.release_exists != 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Download LiteRT Artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: litert-v${{ inputs.version }}
+          path: ${{ runner.temp }}/litert-artifacts
 
       - name: Commit Manifests
-        if: steps.check.outputs.exists != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          ditto "$RUNNER_TEMP/litert-artifacts/LiteRT.podspec" LiteRT.podspec
+          ditto "$RUNNER_TEMP/litert-artifacts/Package.swift" Package.swift
           EXPECTED_HEAD="$(git rev-parse HEAD)"
           git add LiteRT.podspec Package.swift
 
@@ -302,11 +348,10 @@ jobs:
           echo "PACKAGE_COMMIT=$PACKAGE_COMMIT" >> "$GITHUB_ENV"
 
       - name: GitHub Release
-        if: steps.check.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cd "$ARTIFACT_DIR"
+          cd "$RUNNER_TEMP/litert-artifacts"
           shasum -a 256 -c SHA256SUMS
           gh release create "v${LITERT_VERSION}" \
             --repo "${GITHUB_REPOSITORY}" \

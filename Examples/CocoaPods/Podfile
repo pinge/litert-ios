@@ -1,10 +1,14 @@
 platform :ios, '15.0'
 
 litert_version = ENV.fetch('LITERT_VERSION', '2.1.6')
-litert_podspec = "https://raw.githubusercontent.com/pinge/litert-ios/v#{litert_version}/LiteRT.podspec"
+litert_path = ENV['LITERT_PATH']
 
 target 'LiteRTExample' do
-  pod 'LiteRT', :podspec => litert_podspec
+  if litert_path
+    pod 'LiteRT', :path => litert_path
+  else
+    pod 'LiteRT', :podspec => "https://raw.githubusercontent.com/pinge/litert-ios/v#{litert_version}/LiteRT.podspec"
+  end
 
   target 'LiteRTExampleTests' do
     inherit! :search_paths
