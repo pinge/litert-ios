@@ -24,7 +24,6 @@ concurrency:
 env:
   LITERT_VERSION: ${{ inputs.version }}
   LITERT_REPOSITORY: https://github.com/google-ai-edge/LiteRT.git
-  XCODE_VERSION: "26.1.1"
 
 jobs:
   preflight:
@@ -61,184 +60,14 @@ jobs:
             }
 
   build:
-    name: 📖 Build ${{ inputs.version }}
+    name: 📖
     needs: preflight
     if: needs.preflight.outputs.proceed == 'true'
-    runs-on: macos-26
-    timeout-minutes: 360
-    env:
-      LITERT_SOURCE_DIR: ${{ github.workspace }}/.build/litert-${{ inputs.version }}-source
-    defaults:
-      run:
-        shell: bash -eo pipefail {0}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          persist-credentials: false
-
-      - name: Xcode Select
-        run: |
-          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
-          xcode-select -p
-
-      - name: Toolchain Versions
-        run: |
-          XCODE_VERSION="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
-          echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
-          xcrun --show-sdk-path --sdk iphoneos
-
-      - name: Checkout LiteRT
-        env:
-          # Defers Git LFS downloads. 2.1.6 pulls only the required Metal dylibs and 2.2.0 needs none.
-          GIT_LFS_SKIP_SMUDGE: "1"
-        run: |
-          mkdir -p .build
-          test ! -e "$LITERT_SOURCE_DIR"
-          git clone \
-            --branch "v${LITERT_VERSION}" \
-            --depth 1 \
-            --filter=blob:none \
-            "${LITERT_REPOSITORY}" \
-            "$LITERT_SOURCE_DIR"
-          cd "$LITERT_SOURCE_DIR"
-          test "$(git describe --tags --exact-match HEAD)" = "v${LITERT_VERSION}"
-          LITERT_COMMIT="$(git rev-parse HEAD)"
-          echo "LITERT_COMMIT=$LITERT_COMMIT" >> "$GITHUB_ENV"
-
-      - name: Build LiteRT
-        run: "${GITHUB_WORKSPACE}/ci/${LITERT_VERSION}/build-litert-${LITERT_VERSION}.sh"
-
-      # GitHub MacOs hosted runners do not have access to a physical GPU, so the testMetalBuffer always fails.
-      # Note: this does not test the built LiteRT in the previous step. This just a source code + environment sanity check.
-      - name: Test LiteRT Swift API
-        run: |
-          cd "$LITERT_SOURCE_DIR"
-          TEST_FILE=litert/swift/Tests/TensorBufferTests.swift
-          test "$(grep -c '^  func testMetalBuffer() throws {$' "$TEST_FILE")" -eq 1
-          sed -i '' \
-            's/^  func testMetalBuffer() throws {$/  func disabledTestMetalBuffer() throws {/' \
-            "$TEST_FILE"
-          grep -q '^  func disabledTestMetalBuffer() throws {$' "$TEST_FILE"
-          bazel test -c opt --test_output=all //litert/swift:LiteRT_Swift_Tests
-
-      - name: Package XCFrameworks
-        run: "${GITHUB_WORKSPACE}/ci/${LITERT_VERSION}/package-litert-xcframeworks-${LITERT_VERSION}.sh"
-
-      - name: Validate XCFrameworks
-        run: |
-          "${GITHUB_WORKSPACE}/ci/${LITERT_VERSION}/validate-litert-xcframeworks-${LITERT_VERSION}.sh" "$ARTIFACT_DIR"
-
-      - name: Release Checksums
-        run: |
-          cd "$ARTIFACT_DIR"
-          CLITERT_CHECKSUM="$(shasum -a 256 CLiteRT.xcframework.zip | awk '{ print $1 }')"
-          METAL_CHECKSUM="$(shasum -a 256 LiteRTMetalAccelerator.xcframework.zip | awk '{ print $1 }')"
-          COCOAPODS_CHECKSUM="$(shasum -a 256 LiteRT.xcframeworks.zip | awk '{ print $1 }')"
-          printf '%s  %s\n' \
-            "$CLITERT_CHECKSUM" CLiteRT.xcframework.zip \
-            "$METAL_CHECKSUM" LiteRTMetalAccelerator.xcframework.zip \
-            "$COCOAPODS_CHECKSUM" LiteRT.xcframeworks.zip | tee SHA256SUMS
-          echo "CLITERT_CHECKSUM=$CLITERT_CHECKSUM" >> "$GITHUB_ENV"
-          echo "METAL_CHECKSUM=$METAL_CHECKSUM" >> "$GITHUB_ENV"
-          echo "COCOAPODS_CHECKSUM=$COCOAPODS_CHECKSUM" >> "$GITHUB_ENV"
-          MACOS_VERSION="$(sw_vers -productVersion)"
-          RUNNER_ARCHITECTURE="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
-          cat > "LiteRT-v${LITERT_VERSION}.json" <<EOF
-          {
-            "litert_version": "${LITERT_VERSION}",
-            "litert_repository": "${LITERT_REPOSITORY}",
-            "litert_commit": "${LITERT_COMMIT}",
-            "litert_metal_commit": "${LITERT_METAL_COMMIT:-${LITERT_COMMIT}}",
-            "bazel": "${BAZEL_VERSION}",
-            "xcode": "${XCODE_VERSION}",
-            "runner": "${ImageOS}-${RUNNER_ARCHITECTURE}-${ImageVersion}",
-            "macos": "${MACOS_VERSION}",
-            "artifacts": [
-              "CLiteRT.xcframework.zip",
-              "LiteRTMetalAccelerator.xcframework.zip",
-              "LiteRT.xcframeworks.zip"
-            ]
-          }
-          EOF
-          cat "LiteRT-v${LITERT_VERSION}.json"
-
-      - name: LiteRT.podspec
-        run: |
-          cat > "$ARTIFACT_DIR/LiteRT.podspec" <<EOF
-          Pod::Spec.new do |spec|
-            spec.name = 'LiteRT'
-            spec.version = '${LITERT_VERSION}'
-            spec.authors = 'Google Inc.'
-            spec.license = { :type => 'Apache-2.0', :file => 'LICENSE' }
-            spec.homepage = 'https://github.com/google-ai-edge/LiteRT'
-            spec.source = {
-              :http => "https://github.com/${GITHUB_REPOSITORY}/releases/download/v#{spec.version}/LiteRT.xcframeworks.zip",
-              :sha256 => '${COCOAPODS_CHECKSUM}'
-            }
-            spec.summary = 'LiteRT runtime and Metal accelerator for iOS.'
-            spec.cocoapods_version = '>= 1.9.0'
-            spec.ios.deployment_target = '15.0'
-            spec.vendored_frameworks = [
-              'CLiteRT.xcframework',
-              'LiteRTMetalAccelerator.xcframework'
-            ]
-          end
-          EOF
-          pod ipc spec "$ARTIFACT_DIR/LiteRT.podspec" >/dev/null
-
-      - name: Package.swift
-        run: |
-          cat > "$ARTIFACT_DIR/Package.swift" <<EOF
-          // swift-tools-version: 5.9
-
-          import PackageDescription
-
-          let release = "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${LITERT_VERSION}"
-
-          let package = Package(
-            name: "LiteRT",
-            platforms: [
-              .iOS(.v15),
-            ],
-            products: [
-              .library(
-                name: "LiteRT",
-                targets: [
-                  "CLiteRT",
-                  "LiteRTMetalAccelerator",
-                ]
-              ),
-            ],
-            targets: [
-              .binaryTarget(
-                name: "CLiteRT",
-                url: "\(release)/CLiteRT.xcframework.zip",
-                checksum: "${CLITERT_CHECKSUM}"
-              ),
-              .binaryTarget(
-                name: "LiteRTMetalAccelerator",
-                url: "\(release)/LiteRTMetalAccelerator.xcframework.zip",
-                checksum: "${METAL_CHECKSUM}"
-              ),
-            ]
-          )
-          EOF
-          swift package --package-path "$ARTIFACT_DIR" dump-package >/dev/null
-
-      - name: Upload LiteRT Artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: litert-v${{ inputs.version }}
-          path: |
-            ${{ env.ARTIFACT_DIR }}/CLiteRT.xcframework.zip
-            ${{ env.ARTIFACT_DIR }}/LiteRTMetalAccelerator.xcframework.zip
-            ${{ env.ARTIFACT_DIR }}/LiteRT.xcframeworks.zip
-            ${{ env.ARTIFACT_DIR }}/LiteRT-v${{ inputs.version }}.json
-            ${{ env.ARTIFACT_DIR }}/SHA256SUMS
-            ${{ env.ARTIFACT_DIR }}/LiteRT.podspec
-            ${{ env.ARTIFACT_DIR }}/Package.swift
-          if-no-files-found: error
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ inputs.version }}
 
   simulator:
     name: 🖥️
