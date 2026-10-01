@@ -1,0 +1,84 @@
+name: 🧩 Integration Tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: litert-integration-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+# Xcode 26 supports iOS 15+ Simulator runtimes. Xcode 27 starts at iOS 17.
+# See https://developer.apple.com/xcode/system-requirements
+env:
+  XCODE_VERSION: "26.6"
+
+jobs:
+  package-managers:
+    name: LiteRT ${{ matrix.version }} - ${{ matrix.package_manager }}
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - "2.1.6"
+          - "2.2.0"
+        package_manager:
+          - swiftpm
+          - cocoapods
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+
+      - name: Test Integration
+        run: Tests/test-integration.sh simulator "${{ matrix.version }}" "${{ matrix.package_manager }}"
+
+  # GitHub images retain only three runtime versions, explicitly installing each target is required.
+  # iOS 16 coverage ends when GitHub removes macos-26 or Xcode 26.
+  # See https://github.com/actions/runner-images#support-policy
+  ios-runtimes:
+    name: LiteRT ${{ matrix.version }} - iOS ${{ matrix.ios_runtime }}
+    runs-on: macos-26
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - "2.1.6"
+          - "2.2.0"
+        ios_runtime:
+          - "16.0"
+          - "17.0"
+          - "18.0"
+          - "26.0"
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+
+      - name: Install Simulator Runtime
+        env:
+          IOS_RUNTIME: ${{ matrix.ios_runtime }}
+        run: xcodebuild -downloadPlatform iOS -buildVersion "$IOS_RUNTIME"
+
+      - name: Create Simulator
+        env:
+          IOS_RUNTIME: ${{ matrix.ios_runtime }}
+        run: |
+          RUNTIME_ID="com.apple.CoreSimulator.SimRuntime.iOS-${IOS_RUNTIME//./-}"
+          SIMULATOR_ID="$(xcrun simctl create \
+            "LiteRT iOS ${IOS_RUNTIME}" \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-13 \
+            "$RUNTIME_ID")"
+          echo "SIMULATOR_ID=$SIMULATOR_ID" >> "$GITHUB_ENV"
+
+      - name: Integration Tests
+        run: Tests/test-integration.sh simulator "${{ matrix.version }}" swiftpm

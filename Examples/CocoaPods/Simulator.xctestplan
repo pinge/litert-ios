@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "B1D0A846-4E0D-4AF1-8727-E5A54A36C45A",
+      "name" : "Simulator",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:LiteRTExample.xcodeproj",
+      "identifier" : "100000000000000000000001",
+      "name" : "LiteRTExample"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:LiteRTExample.xcodeproj",
+        "identifier" : "100000000000000000000002",
+        "name" : "LiteRTExampleTests"
+      }
+    }
+  ],
+  "version" : 1
+}
