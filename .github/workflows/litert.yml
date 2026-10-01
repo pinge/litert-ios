@@ -28,7 +28,7 @@ env:
 
 jobs:
   build:
-    name: 📖 build ${{ inputs.version }}
+    name: 📖 Build ${{ inputs.version }}
     runs-on: macos-26
     timeout-minutes: 360
     outputs:
@@ -241,14 +241,25 @@ jobs:
             ${{ env.ARTIFACT_DIR }}/Package.swift
           if-no-files-found: error
 
-  test:
-    name: 🧩
+  simulator:
+    name: 🖥️
+    needs: build
+    if: needs.build.outputs.release_exists != 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/simulator-integration-tests.yml
+    with:
+      version: ${{ inputs.version }}
+      artifact_name: litert-v${{ inputs.version }}
+
+  device:
+    name: 📱
     needs: build
     if: needs.build.outputs.release_exists != 'true'
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/integration-tests.yml
+    uses: ./.github/workflows/device-integration-tests.yml
     with:
       version: ${{ inputs.version }}
       artifact_name: litert-v${{ inputs.version }}
@@ -256,10 +267,11 @@ jobs:
     secrets: inherit
 
   release:
-    name: 🏷️ release ${{ inputs.version }}
+    name: 🏷️ Release ${{ inputs.version }}
     needs:
       - build
-      - test
+      - simulator
+      - device
     if: needs.build.outputs.release_exists != 'true'
     runs-on: macos-26
     timeout-minutes: 30

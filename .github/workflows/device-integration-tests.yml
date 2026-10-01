@@ -1,4 +1,4 @@
-name: 🧩 Integration Tests
+name: 📱 Device Integration Tests
 
 on:
   workflow_call:
@@ -25,109 +25,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-integration-tests-${{ github.ref }}
+  group: ${{ github.workflow }}-device-integration-tests-${{ github.ref }}
   cancel-in-progress: true
 
-# Xcode 26 supports iOS 15+ Simulator runtimes. Xcode 27 starts at iOS 17.
-# See https://developer.apple.com/xcode/system-requirements
 env:
   XCODE_VERSION: "26.6"
 
 jobs:
-  simulator-package-managers:
-    name: 🖥️ ${{ matrix.package_manager }}
-    runs-on: macos-26
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        package_manager:
-          - swiftpm
-          - cocoapods
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          persist-credentials: false
-
-      - name: Download LiteRT Artifacts
-        if: inputs.artifact_name != ''
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: ${{ inputs.artifact_name }}
-          path: ${{ runner.temp }}/litert-artifacts
-
-      - name: LiteRT Artifact Directory
-        if: inputs.artifact_name != ''
-        run: echo "LITERT_ARTIFACT_DIR=$RUNNER_TEMP/litert-artifacts" >> "$GITHUB_ENV"
-
-      - name: Select Xcode
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
-
-      - name: Test Integration
-        run: Tests/test-integration.sh simulator "${{ inputs.version }}" "${{ matrix.package_manager }}"
-
-  # GitHub images retain only three runtime versions, explicitly installing each target is required.
-  # iOS 16 coverage ends when GitHub removes macos-26 or Xcode 26.
-  # See https://github.com/actions/runner-images#support-policy
-  simulator-ios-runtimes:
-    name: 🖥️ ios ${{ matrix.ios_runtime }}
-    runs-on: macos-26
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        ios_runtime:
-          - "16.4"
-          - "17.5"
-          - "18.6"
-          - "26.5"
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          persist-credentials: false
-
-      - name: Download LiteRT Artifacts
-        if: inputs.artifact_name != ''
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: ${{ inputs.artifact_name }}
-          path: ${{ runner.temp }}/litert-artifacts
-
-      - name: LiteRT Artifact Directory
-        if: inputs.artifact_name != ''
-        run: echo "LITERT_ARTIFACT_DIR=$RUNNER_TEMP/litert-artifacts" >> "$GITHUB_ENV"
-
-      - name: Select Xcode
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
-
-      - name: Install Simulator Runtime
-        env:
-          IOS_RUNTIME: ${{ matrix.ios_runtime }}
-        run: |
-          # https://github.com/actions/runner-images/issues/12862#issuecomment-3209385688
-          xcrun simctl list > /dev/null
-          if [[ "$IOS_RUNTIME" != 26.5 ]]; then
-            xcodebuild -downloadPlatform iOS -buildVersion "$IOS_RUNTIME"
-          fi
-
-      - name: Create Simulator
-        env:
-          IOS_RUNTIME: ${{ matrix.ios_runtime }}
-        run: |
-          RUNTIME_ID="com.apple.CoreSimulator.SimRuntime.iOS-${IOS_RUNTIME//./-}"
-          SIMULATOR_ID="$(xcrun simctl create \
-            "LiteRT iOS ${IOS_RUNTIME}" \
-            com.apple.CoreSimulator.SimDeviceType.iPhone-13 \
-            "$RUNTIME_ID")"
-          echo "SIMULATOR_ID=$SIMULATOR_ID" >> "$GITHUB_ENV"
-
-      - name: Integration Tests
-        run: Tests/test-integration.sh simulator "${{ inputs.version }}" swiftpm
-
-  device-package-managers:
-    name: 📱 ${{ matrix.package_manager }}
+  package-managers:
+    name: ${{ matrix.package_manager_name }}
     runs-on: macos-26
     timeout-minutes: 60
     environment: aws-device-farm
@@ -137,9 +43,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package_manager:
-          - swiftpm
-          - cocoapods
+        include:
+          - package_manager: swiftpm
+            package_manager_name: SwiftPM
+          - package_manager: cocoapods
+            package_manager_name: CocoaPods
     steps:
       - name: Checkout Repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -174,12 +82,13 @@ jobs:
       - name: Integration Tests
         env:
           DEVICE_FARM_PROJECT_ARN: ${{ secrets.AWS_DEVICE_FARM_PROJECT_ARN }}
+          # Best balance between recent hardware and recent iOS version on AWS Device Farm.
           DEVICE_FARM_DEVICE_NAME: Apple iPhone 17 Pro
           DEVICE_FARM_OS_VERSION: "26.3.1"
         run: Tests/test-integration.sh device "${{ inputs.version }}" "${{ matrix.package_manager }}"
 
-  device-ios-runtimes:
-    name: 📱 ios ${{ matrix.ios_runtime }}
+  ios-runtimes:
+    name: iOS ${{ matrix.ios_runtime }}
     runs-on: macos-26
     timeout-minutes: 60
     environment: aws-device-farm
