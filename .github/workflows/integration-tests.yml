@@ -35,7 +35,7 @@ env:
 
 jobs:
   simulator-package-managers:
-    name: 🕹️ ${{ matrix.package_manager }}
+    name: 🖥️ ${{ matrix.package_manager }}
     runs-on: macos-26
     timeout-minutes: 30
     strategy:
@@ -71,7 +71,7 @@ jobs:
   # iOS 16 coverage ends when GitHub removes macos-26 or Xcode 26.
   # See https://github.com/actions/runner-images#support-policy
   simulator-ios-runtimes:
-    name: 🕹️ ios ${{ matrix.ios_runtime }}
+    name: 🖥️ ios ${{ matrix.ios_runtime }}
     runs-on: macos-26
     timeout-minutes: 90
     strategy:
@@ -127,7 +127,7 @@ jobs:
         run: Tests/test-integration.sh simulator "${{ inputs.version }}" swiftpm
 
   device-package-managers:
-    name: 📲 ${{ matrix.version }} ${{ matrix.package_manager }}
+    name: 📱 ${{ matrix.package_manager }}
     runs-on: macos-26
     timeout-minutes: 60
     environment: aws-device-farm
@@ -137,9 +137,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version:
-          - "2.1.6"
-          - "2.2.0"
         package_manager:
           - swiftpm
           - cocoapods
@@ -150,14 +147,14 @@ jobs:
           persist-credentials: false
 
       - name: Download LiteRT Artifacts
-        if: inputs.artifact_name != '' && matrix.version == inputs.version
+        if: inputs.artifact_name != ''
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ inputs.artifact_name }}
           path: ${{ runner.temp }}/litert-artifacts
 
       - name: LiteRT Artifact Directory
-        if: inputs.artifact_name != '' && matrix.version == inputs.version
+        if: inputs.artifact_name != ''
         run: echo "LITERT_ARTIFACT_DIR=$RUNNER_TEMP/litert-artifacts" >> "$GITHUB_ENV"
 
       - name: Select Xcode
@@ -179,10 +176,10 @@ jobs:
           DEVICE_FARM_PROJECT_ARN: ${{ secrets.AWS_DEVICE_FARM_PROJECT_ARN }}
           DEVICE_FARM_DEVICE_NAME: Apple iPhone 17 Pro
           DEVICE_FARM_OS_VERSION: "26.3.1"
-        run: Tests/test-integration.sh device "${{ matrix.version }}" "${{ matrix.package_manager }}"
+        run: Tests/test-integration.sh device "${{ inputs.version }}" "${{ matrix.package_manager }}"
 
   device-ios-runtimes:
-    name: 📲 ios ${{ matrix.ios_runtime }}
+    name: 📱 ios ${{ matrix.ios_runtime }}
     runs-on: macos-26
     timeout-minutes: 60
     environment: aws-device-farm

@@ -188,6 +188,14 @@ if [[ "$PLATFORM" == device ]]; then
     exit 1
   fi
 
+  # Older Device Farm hosts do not provide all of Xcode 26's Testing runtime dependencies.
+  # https://docs.aws.amazon.com/devicefarm/latest/developerguide/ios-host-migration.html#ios-host-migration-differences
+  # https://github.com/WebKit/WebKit/blob/main/Tools/TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj
+  TESTING_FRAMEWORKS_DIRECTORY="$(xcode-select -p)/Platforms/iPhoneOS.platform/Developer/Library/Frameworks"
+  TESTING_INTEROP_LIBRARY="$(xcode-select -p)/Platforms/iPhoneOS.platform/Developer/usr/lib/lib_TestingInterop.dylib"
+  ditto "$TESTING_FRAMEWORKS_DIRECTORY/_Testing_Foundation.framework" "$APP_BUNDLE/Frameworks/_Testing_Foundation.framework"
+  ditto "$TESTING_INTEROP_LIBRARY" "$APP_BUNDLE/Frameworks/lib_TestingInterop.dylib"
+
   mkdir -p "$PACKAGE_DIRECTORY/Payload"
   ditto --norsrc --noextattr \
     "$APP_BUNDLE" "$PACKAGE_DIRECTORY/Payload/LiteRTExample.app"
@@ -266,7 +274,7 @@ if [[ "$PLATFORM" == device ]]; then
     --project-arn "$DEVICE_FARM_PROJECT_ARN" \
     --app-arn "$APP_UPLOAD_ARN" \
     --device-selection-configuration "$DEVICE_SELECTION" \
-    --name "LiteRT $LITERT_VERSION $PACKAGE_MANAGER" \
+    --name "LiteRT $LITERT_VERSION - iOS $DEVICE_FARM_OS_VERSION - $PACKAGE_MANAGER" \
     --test "type=XCTEST,testPackageArn=$XCTEST_UPLOAD_ARN" \
     --execution-configuration 'accountsCleanup=false,appPackagesCleanup=false,videoCapture=false' \
     --query run.arn \

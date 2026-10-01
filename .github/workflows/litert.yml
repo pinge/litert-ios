@@ -242,7 +242,7 @@ jobs:
           if-no-files-found: error
 
   test:
-    name: 🧩 ${{ inputs.version }}
+    name: 🧩
     needs: build
     if: needs.build.outputs.release_exists != 'true'
     permissions:
@@ -252,6 +252,8 @@ jobs:
     with:
       version: ${{ inputs.version }}
       artifact_name: litert-v${{ inputs.version }}
+    # https://github.com/actions/runner/issues/4453
+    secrets: inherit
 
   release:
     name: 🏷️ release ${{ inputs.version }}
