@@ -75,7 +75,7 @@ jobs:
   ios-runtimes:
     name: iOS ${{ matrix.ios_runtime }}
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:

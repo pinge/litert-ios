@@ -90,7 +90,7 @@ jobs:
   ios-runtimes:
     name: iOS ${{ matrix.ios_runtime }}
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 90
     environment: aws-device-farm
     permissions:
       contents: read
