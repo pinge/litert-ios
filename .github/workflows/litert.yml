@@ -27,19 +27,13 @@ env:
   XCODE_VERSION: "26.1.1"
 
 jobs:
-  build:
-    name: 📖 Build ${{ inputs.version }}
-    runs-on: macos-26
-    timeout-minutes: 360
+  preflight:
+    name: 🛫 Preflight
+    runs-on: ubuntu-latest
     outputs:
-      release_exists: ${{ steps.check.outputs.exists }}
-    env:
-      LITERT_SOURCE_DIR: ${{ github.workspace }}/.build/litert-${{ inputs.version }}-source
-    defaults:
-      run:
-        shell: bash -eo pipefail {0}
+      proceed: ${{ steps.release.outputs.result }}
     steps:
-      - name: LiteRT Version
+      - name: Release Branch
         run: |
           if [[ "$GITHUB_REF_TYPE" != "branch" ]]; then
             echo "LiteRT releases must run from a branch" >&2
@@ -47,41 +41,54 @@ jobs:
           fi
 
       - name: Check Release
-        id: check
+        id: release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "v${LITERT_VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+          TAG: v${{ inputs.version }}
+        with:
+          result-encoding: string
+          retries: 3
+          script: |
+            try {
+              await github.rest.repos.getReleaseByTag({ ...context.repo, tag: process.env.TAG })
+              core.info(`Release ${process.env.TAG} already exists.`)
+              return "false"
+            } catch (error) {
+              if (error.status === 404) {
+                return "true"
+              }
+              throw error
+            }
 
-      - name: Skip Release
-        if: steps.check.outputs.exists == 'true'
-        run: echo "Release v${LITERT_VERSION} already exists."
-
+  build:
+    name: 📖 Build ${{ inputs.version }}
+    needs: preflight
+    if: needs.preflight.outputs.proceed == 'true'
+    runs-on: macos-26
+    timeout-minutes: 360
+    env:
+      LITERT_SOURCE_DIR: ${{ github.workspace }}/.build/litert-${{ inputs.version }}-source
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
       - name: Checkout Repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        if: steps.check.outputs.exists != 'true'
         with:
           persist-credentials: false
 
       - name: Xcode Select
-        if: steps.check.outputs.exists != 'true'
         run: |
           sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
           xcode-select -p
 
       - name: Toolchain Versions
-        if: steps.check.outputs.exists != 'true'
         run: |
           XCODE_VERSION="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
           xcrun --show-sdk-path --sdk iphoneos
 
       - name: Checkout LiteRT
-        if: steps.check.outputs.exists != 'true'
         env:
           # Defers Git LFS downloads. 2.1.6 pulls only the required Metal dylibs and 2.2.0 needs none.
           GIT_LFS_SKIP_SMUDGE: "1"
@@ -100,13 +107,11 @@ jobs:
           echo "LITERT_COMMIT=$LITERT_COMMIT" >> "$GITHUB_ENV"
 
       - name: Build LiteRT
-        if: steps.check.outputs.exists != 'true'
         run: "${GITHUB_WORKSPACE}/ci/${LITERT_VERSION}/build-litert-${LITERT_VERSION}.sh"
 
       # GitHub MacOs hosted runners do not have access to a physical GPU, so the testMetalBuffer always fails.
       # Note: this does not test the built LiteRT in the previous step. This just a source code + environment sanity check.
       - name: Test LiteRT Swift API
-        if: steps.check.outputs.exists != 'true'
         run: |
           cd "$LITERT_SOURCE_DIR"
           TEST_FILE=litert/swift/Tests/TensorBufferTests.swift
@@ -118,16 +123,13 @@ jobs:
           bazel test -c opt --test_output=all //litert/swift:LiteRT_Swift_Tests
 
       - name: Package XCFrameworks
-        if: steps.check.outputs.exists != 'true'
         run: "${GITHUB_WORKSPACE}/ci/${LITERT_VERSION}/package-litert-xcframeworks-${LITERT_VERSION}.sh"
 
       - name: Validate XCFrameworks
-        if: steps.check.outputs.exists != 'true'
         run: |
           "${GITHUB_WORKSPACE}/ci/${LITERT_VERSION}/validate-litert-xcframeworks-${LITERT_VERSION}.sh" "$ARTIFACT_DIR"
 
       - name: Release Checksums
-        if: steps.check.outputs.exists != 'true'
         run: |
           cd "$ARTIFACT_DIR"
           CLITERT_CHECKSUM="$(shasum -a 256 CLiteRT.xcframework.zip | awk '{ print $1 }')"
@@ -162,7 +164,6 @@ jobs:
           cat "LiteRT-v${LITERT_VERSION}.json"
 
       - name: LiteRT.podspec
-        if: steps.check.outputs.exists != 'true'
         run: |
           cat > "$ARTIFACT_DIR/LiteRT.podspec" <<EOF
           Pod::Spec.new do |spec|
@@ -187,7 +188,6 @@ jobs:
           pod ipc spec "$ARTIFACT_DIR/LiteRT.podspec" >/dev/null
 
       - name: Package.swift
-        if: steps.check.outputs.exists != 'true'
         run: |
           cat > "$ARTIFACT_DIR/Package.swift" <<EOF
           // swift-tools-version: 5.9
@@ -227,7 +227,6 @@ jobs:
           swift package --package-path "$ARTIFACT_DIR" dump-package >/dev/null
 
       - name: Upload LiteRT Artifacts
-        if: steps.check.outputs.exists != 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: litert-v${{ inputs.version }}
@@ -244,7 +243,6 @@ jobs:
   simulator:
     name: 🖥️
     needs: build
-    if: needs.build.outputs.release_exists != 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/simulator-integration-tests.yml
@@ -255,7 +253,6 @@ jobs:
   device:
     name: 📱
     needs: build
-    if: needs.build.outputs.release_exists != 'true'
     permissions:
       contents: read
       id-token: write
@@ -272,7 +269,6 @@ jobs:
       - build
       - simulator
       - device
-    if: needs.build.outputs.release_exists != 'true'
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
