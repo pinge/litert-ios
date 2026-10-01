@@ -1,7 +1,5 @@
 name: 🍏 LiteRT
 
-# LiteRT iOS published as an immutable GitHub Release
-
 on:
   workflow_dispatch:
     inputs:

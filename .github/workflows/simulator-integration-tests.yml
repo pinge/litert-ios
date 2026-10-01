@@ -70,6 +70,7 @@ jobs:
         run: Tests/test-integration.sh simulator "${{ inputs.version }}" "${{ matrix.package_manager }}"
 
   # GitHub images retain only three runtime versions, explicitly installing each target is required.
+  # The iOS 15.5 runtime is not available through xcodebuild -downloadPlatform for this Xcode and GitHub-hosted runner environment.
   # iOS 16 coverage ends when GitHub removes macos-26 or Xcode 26.
   # See https://github.com/actions/runner-images#support-policy
   ios-runtimes:

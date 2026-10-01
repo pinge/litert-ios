@@ -28,7 +28,10 @@ concurrency:
   group: ${{ github.workflow }}-device-integration-tests-${{ github.ref }}
   cancel-in-progress: true
 
+# AWS Device Farm is available only in us-west-2.
+# https://docs.aws.amazon.com/devicefarm/latest/developerguide/getting-started.html
 env:
+  AWS_REGION: us-west-2
   XCODE_VERSION: "26.6"
 
 jobs:
@@ -71,7 +74,7 @@ jobs:
       - name: AWS Device Farm
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          aws-region: us-west-2
+          aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_DEVICE_FARM_ROLE_ARN }}
           allowed-account-ids: ${{ secrets.AWS_ACCOUNT_ID }}
           mask-aws-account-id: true
@@ -99,6 +102,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - device: Apple iPhone 7
+            ios_runtime: "15.8.4"
           - device: Apple iPhone SE (2022)
             ios_runtime: "16.4"
           - device: Apple iPhone 12
@@ -132,7 +137,7 @@ jobs:
       - name: AWS Device Farm
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          aws-region: us-west-2
+          aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_DEVICE_FARM_ROLE_ARN }}
           allowed-account-ids: ${{ secrets.AWS_ACCOUNT_ID }}
           mask-aws-account-id: true

@@ -188,13 +188,59 @@ if [[ "$PLATFORM" == device ]]; then
     exit 1
   fi
 
-  # Older Device Farm hosts do not provide all of Xcode 26's Testing runtime dependencies.
+  # Older Device Farm hosts may not provide the selected Xcode's Testing runtime dependencies.
   # https://docs.aws.amazon.com/devicefarm/latest/developerguide/ios-host-migration.html#ios-host-migration-differences
   # https://github.com/WebKit/WebKit/blob/main/Tools/TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj
-  TESTING_FRAMEWORKS_DIRECTORY="$(xcode-select -p)/Platforms/iPhoneOS.platform/Developer/Library/Frameworks"
-  TESTING_INTEROP_LIBRARY="$(xcode-select -p)/Platforms/iPhoneOS.platform/Developer/usr/lib/lib_TestingInterop.dylib"
-  ditto "$TESTING_FRAMEWORKS_DIRECTORY/_Testing_Foundation.framework" "$APP_BUNDLE/Frameworks/_Testing_Foundation.framework"
-  ditto "$TESTING_INTEROP_LIBRARY" "$APP_BUNDLE/Frameworks/lib_TestingInterop.dylib"
+  IPHONEOS_DEVELOPER_DIRECTORY="$(xcode-select -p)/Platforms/iPhoneOS.platform/Developer"
+
+  copy_xcode_test_dependency() {
+    local binary_path="$1"
+    local install_name="$2"
+    local dependency_name="$3"
+    local dependency_sources
+    local linked_libraries
+
+    if [[ ! -f "$binary_path" ]]; then
+      return
+    fi
+    if ! linked_libraries="$(otool -L "$binary_path")"; then
+      echo "Failed to inspect Xcode test runtime: $binary_path" >&2
+      exit 1
+    fi
+    if ! awk -v install_name="$install_name" '
+      NR > 1 && $1 == install_name { found = 1 }
+      END { exit(found ? 0 : 1) }
+    ' <<< "$linked_libraries"; then
+      return
+    fi
+
+    if ! dependency_sources="$(
+      find "$IPHONEOS_DEVELOPER_DIRECTORY" -name "$dependency_name" -print
+    )"; then
+      echo "Failed to locate Xcode test dependency: $dependency_name" >&2
+      exit 1
+    fi
+    if [[ -z "$dependency_sources" ]]; then
+      echo "Required Xcode test dependency not found: $dependency_name" >&2
+      exit 1
+    fi
+    if [[ "$dependency_sources" == *$'\n'* ]]; then
+      echo "Multiple Xcode test dependencies found: $dependency_name" >&2
+      printf '%s\n' "$dependency_sources" >&2
+      exit 1
+    fi
+
+    ditto "$dependency_sources" "$APP_BUNDLE/Frameworks/$dependency_name"
+  }
+
+  copy_xcode_test_dependency \
+    "$APP_BUNDLE/Frameworks/libXCTestSwiftSupport.dylib" \
+    '@rpath/_Testing_Foundation.framework/_Testing_Foundation' \
+    '_Testing_Foundation.framework'
+  copy_xcode_test_dependency \
+    "$APP_BUNDLE/Frameworks/Testing.framework/Testing" \
+    '@rpath/lib_TestingInterop.dylib' \
+    'lib_TestingInterop.dylib'
 
   mkdir -p "$PACKAGE_DIRECTORY/Payload"
   ditto --norsrc --noextattr \
