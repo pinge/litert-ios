@@ -5,16 +5,16 @@ import PackageDescription
 let package = Package(
   name: "LiteRT",
   platforms: [
-    .iOS(.v15),
+    .iOS(.v15)
   ],
   products: [
     .library(
       name: "LiteRT",
       targets: [
         "CLiteRT",
-        "LiteRTMetalAccelerator",
+        "LiteRTMetalAccelerator"
       ]
-    ),
+    )
   ],
   targets: [
     .binaryTarget(
@@ -24,6 +24,6 @@ let package = Package(
     .binaryTarget(
       name: "LiteRTMetalAccelerator",
       path: "LiteRTMetalAccelerator.xcframework"
-    ),
+    )
   ]
 )

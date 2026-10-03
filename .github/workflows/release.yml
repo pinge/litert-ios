@@ -45,17 +45,34 @@ jobs:
         run: |
           ditto "$RUNNER_TEMP/litert-artifacts/LiteRT.podspec" LiteRT.podspec
           ditto "$RUNNER_TEMP/litert-artifacts/Package.swift" Package.swift
-          EXPECTED_HEAD="$(git rev-parse HEAD)"
-          git add LiteRT.podspec Package.swift
+          BADGE="[![LiteRT v${LITERT_VERSION}](https://img.shields.io/github/v/release/${GITHUB_REPOSITORY}?filter=v${LITERT_VERSION}&label=LiteRT)](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${LITERT_VERSION})"
+          BADGE_URL="https://img.shields.io/github/v/release/${GITHUB_REPOSITORY}?filter=v"
 
-          if git diff --cached --quiet -- LiteRT.podspec Package.swift; then
+          if ! grep -Fq "$BADGE" README.md; then
+            if grep -Fq "$BADGE_URL" README.md; then
+              awk -v badge="$BADGE" -v badge_url="$BADGE_URL" \
+                '!added && index($0, badge_url) { print $0 " " badge; added = 1; next } { print }' \
+                README.md > "$RUNNER_TEMP/README.md"
+            else
+              awk -v badge="$BADGE" \
+                '$0 == "LiteRT iOS XCFrameworks for Swift Package Manager and CocoaPods." { print; print ""; print badge; added = 1; next } { print } END { if (!added) exit 1 }' \
+                README.md > "$RUNNER_TEMP/README.md"
+            fi
+            ditto "$RUNNER_TEMP/README.md" README.md
+          fi
+
+          EXPECTED_HEAD="$(git rev-parse HEAD)"
+          git add LiteRT.podspec Package.swift README.md
+
+          if git diff --cached --quiet -- LiteRT.podspec Package.swift README.md; then
             echo "PACKAGE_COMMIT=$EXPECTED_HEAD" >> "$GITHUB_ENV"
             exit 0
           fi
 
-          git diff --cached --check -- LiteRT.podspec Package.swift
+          git diff --cached --check -- LiteRT.podspec Package.swift README.md
           PODSPEC_CONTENT="$(base64 < LiteRT.podspec | tr -d '\n')"
           PACKAGE_CONTENT="$(base64 < Package.swift | tr -d '\n')"
+          README_CONTENT="$(base64 < README.md | tr -d '\n')"
           QUERY='mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid signature { isValid wasSignedByGitHub } } } }'
           REQUEST="$(
             jq -n \
@@ -63,9 +80,10 @@ jobs:
               --arg repository "$GITHUB_REPOSITORY" \
               --arg branch "$GITHUB_REF_NAME" \
               --arg head "$EXPECTED_HEAD" \
-              --arg message "build: LiteRT v${LITERT_VERSION}" \
+              --arg message "build: litert v${LITERT_VERSION}" \
               --arg podspec "$PODSPEC_CONTENT" \
               --arg package "$PACKAGE_CONTENT" \
+              --arg readme "$README_CONTENT" \
               '{
                 query: $query,
                 variables: {
@@ -87,6 +105,10 @@ jobs:
                         {
                           path: "Package.swift",
                           contents: $package
+                        },
+                        {
+                          path: "README.md",
+                          contents: $readme
                         }
                       ]
                     }

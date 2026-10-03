@@ -21,7 +21,7 @@ private typealias GetAcceleratorHardwareSupport = @convention(c) (
 
 final class MetalRegistrationTests: XCTestCase {
   func testMetalAcceleratorRegistersWithLiteRT() throws {
-    try withRegisteredMetalAccelerator { process in
+    try LiteRTMetalRegistration.withRegisteredAccelerator { process in
       let environment = try createEnvironment()
       defer { LiteRtDestroyEnvironment(environment) }
 
@@ -38,29 +38,11 @@ final class MetalInferenceTests: XCTestCase {
     #if targetEnvironment(simulator)
       throw XCTSkip("Metal inference requires a physical iOS device")
     #else
-      try withRegisteredMetalAccelerator { _ in
+      try LiteRTMetalRegistration.withRegisteredAccelerator { _ in
         XCTAssertEqual(try LiteRTRunner.runOnMetal(), [3, 9])
       }
     #endif
   }
-}
-
-private func withRegisteredMetalAccelerator<T>(
-  _ operation: (UnsafeMutableRawPointer) throws -> T
-) throws -> T {
-  let process = try XCTUnwrap(dlopen(nil, RTLD_NOW))
-  let acceleratorDefinition = try symbol("LiteRtAcceleratorImpl", in: process)
-  let registration = try symbol(
-    "LiteRtStaticLinkedAcceleratorGpuDef",
-    in: process
-  ).assumingMemoryBound(
-    to: UnsafeMutableRawPointer?.self
-  )
-  let previousDefinition = registration.pointee
-  registration.pointee = acceleratorDefinition
-  defer { registration.pointee = previousDefinition }
-
-  return try operation(process)
 }
 
 private func createEnvironment() throws -> LiteRtEnvironment {

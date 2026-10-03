@@ -35,142 +35,155 @@ enum LiteRTRunner {
     defer { LiteRtDestroyEnvironment(environment) }
 
     return try modelData.withUnsafeBytes { modelBytes in
-      guard let modelAddress = modelBytes.baseAddress else {
-        throw LiteRTExampleError.invalidModelData
-      }
-
-      var model: LiteRtModel?
-      try validate(
-        LiteRtCreateModelFromBuffer(
-          environment,
-          modelAddress,
-          modelBytes.count,
-          &model
-        ),
-        operation: "Create model"
+      try run(
+        modelBytes: modelBytes,
+        environment: environment,
+        hardwareAccelerators: hardwareAccelerators
       )
-      guard let model else {
-        throw LiteRTExampleError.missingHandle("model")
-      }
-      defer { LiteRtDestroyModel(model) }
-
-      var options: LiteRtOptions?
-      try validate(LiteRtCreateOptions(&options), operation: "Create options")
-      guard let options else {
-        throw LiteRTExampleError.missingHandle("options")
-      }
-      defer { LiteRtDestroyOptions(options) }
-
-      try validate(
-        LiteRtSetOptionsHardwareAccelerators(
-          options,
-          hardwareAccelerators
-        ),
-        operation: "Select hardware accelerator"
-      )
-
-      var compiledModel: LiteRtCompiledModel?
-      try validate(
-        LiteRtCreateCompiledModel(environment, model, options, &compiledModel),
-        operation: "Compile model"
-      )
-      guard let compiledModel else {
-        throw LiteRTExampleError.missingHandle("compiled model")
-      }
-      defer { LiteRtDestroyCompiledModel(compiledModel) }
-
-      var signature: LiteRtSignature?
-      try validate(
-        LiteRtGetModelSignature(model, 0, &signature),
-        operation: "Get model signature"
-      )
-      guard let signature else {
-        throw LiteRTExampleError.missingHandle("signature")
-      }
-
-      let inputType = try rankedTensorType(signature: signature, input: true)
-      let outputType = try rankedTensorType(signature: signature, input: false)
-
-      var inputRequirements: LiteRtTensorBufferRequirements?
-      try validate(
-        LiteRtGetCompiledModelInputBufferRequirements(
-          compiledModel,
-          0,
-          0,
-          &inputRequirements
-        ),
-        operation: "Get input buffer requirements"
-      )
-      guard let inputRequirements else {
-        throw LiteRTExampleError.missingHandle("input buffer requirements")
-      }
-
-      var outputRequirements: LiteRtTensorBufferRequirements?
-      try validate(
-        LiteRtGetCompiledModelOutputBufferRequirements(
-          compiledModel,
-          0,
-          0,
-          &outputRequirements
-        ),
-        operation: "Get output buffer requirements"
-      )
-      guard let outputRequirements else {
-        throw LiteRTExampleError.missingHandle("output buffer requirements")
-      }
-
-      var inputBuffer: LiteRtTensorBuffer?
-      var mutableInputType = inputType
-      try validate(
-        LiteRtCreateManagedTensorBufferFromRequirements(
-          environment,
-          &mutableInputType,
-          inputRequirements,
-          &inputBuffer
-        ),
-        operation: "Create input buffer"
-      )
-      guard let inputBuffer else {
-        throw LiteRTExampleError.missingHandle("input buffer")
-      }
-      defer { LiteRtDestroyTensorBuffer(inputBuffer) }
-
-      var outputBuffer: LiteRtTensorBuffer?
-      var mutableOutputType = outputType
-      try validate(
-        LiteRtCreateManagedTensorBufferFromRequirements(
-          environment,
-          &mutableOutputType,
-          outputRequirements,
-          &outputBuffer
-        ),
-        operation: "Create output buffer"
-      )
-      guard let outputBuffer else {
-        throw LiteRTExampleError.missingHandle("output buffer")
-      }
-      defer { LiteRtDestroyTensorBuffer(outputBuffer) }
-
-      try write([1, 3], to: inputBuffer)
-
-      var inputs: [LiteRtTensorBuffer?] = [inputBuffer]
-      var outputs: [LiteRtTensorBuffer?] = [outputBuffer]
-      let status = inputs.withUnsafeMutableBufferPointer { inputPointer in
-        outputs.withUnsafeMutableBufferPointer { outputPointer in
-          LiteRtRunCompiledModel(
-            compiledModel,
-            0,
-            inputPointer.count,
-            inputPointer.baseAddress,
-            outputPointer.count,
-            outputPointer.baseAddress
-          )
-        }
-      }
-      try validate(status, operation: "Run model")
-
-      return try read(count: 2, from: outputBuffer)
     }
+  }
+
+  private static func run(
+    modelBytes: UnsafeRawBufferPointer,
+    environment: LiteRtEnvironment,
+    hardwareAccelerators: LiteRtHwAcceleratorSet
+  ) throws -> [Float] {
+    guard let modelAddress = modelBytes.baseAddress else {
+      throw LiteRTExampleError.invalidModelData
+    }
+
+    var model: LiteRtModel?
+    try validate(
+      LiteRtCreateModelFromBuffer(
+        environment,
+        modelAddress,
+        modelBytes.count,
+        &model
+      ),
+      operation: "Create model"
+    )
+    guard let model else {
+      throw LiteRTExampleError.missingHandle("model")
+    }
+    defer { LiteRtDestroyModel(model) }
+
+    var options: LiteRtOptions?
+    try validate(LiteRtCreateOptions(&options), operation: "Create options")
+    guard let options else {
+      throw LiteRTExampleError.missingHandle("options")
+    }
+    defer { LiteRtDestroyOptions(options) }
+    try validate(
+      LiteRtSetOptionsHardwareAccelerators(options, hardwareAccelerators),
+      operation: "Select hardware accelerator"
+    )
+
+    var compiledModel: LiteRtCompiledModel?
+    try validate(
+      LiteRtCreateCompiledModel(environment, model, options, &compiledModel),
+      operation: "Compile model"
+    )
+    guard let compiledModel else {
+      throw LiteRTExampleError.missingHandle("compiled model")
+    }
+    defer { LiteRtDestroyCompiledModel(compiledModel) }
+
+    return try run(
+      environment: environment,
+      model: model,
+      compiledModel: compiledModel
+    )
+  }
+
+  private static func run(
+    environment: LiteRtEnvironment,
+    model: LiteRtModel,
+    compiledModel: LiteRtCompiledModel
+  ) throws -> [Float] {
+    var signature: LiteRtSignature?
+    try validate(
+      LiteRtGetModelSignature(model, 0, &signature),
+      operation: "Get model signature"
+    )
+    guard let signature else {
+      throw LiteRTExampleError.missingHandle("signature")
+    }
+
+    let inputType = try rankedTensorType(signature: signature, input: true)
+    let outputType = try rankedTensorType(signature: signature, input: false)
+
+    let inputBuffer = try createBuffer(
+      environment: environment,
+      compiledModel: compiledModel,
+      tensorType: inputType,
+      input: true
+    )
+    defer { LiteRtDestroyTensorBuffer(inputBuffer) }
+
+    let outputBuffer = try createBuffer(
+      environment: environment,
+      compiledModel: compiledModel,
+      tensorType: outputType,
+      input: false
+    )
+    defer { LiteRtDestroyTensorBuffer(outputBuffer) }
+
+    try write([1, 3], to: inputBuffer)
+
+    var inputs: [LiteRtTensorBuffer?] = [inputBuffer]
+    var outputs: [LiteRtTensorBuffer?] = [outputBuffer]
+    let status = inputs.withUnsafeMutableBufferPointer { inputPointer in
+      outputs.withUnsafeMutableBufferPointer { outputPointer in
+        LiteRtRunCompiledModel(
+          compiledModel,
+          0,
+          inputPointer.count,
+          inputPointer.baseAddress,
+          outputPointer.count,
+          outputPointer.baseAddress
+        )
+      }
+    }
+    try validate(status, operation: "Run model")
+
+    return try read(count: 2, from: outputBuffer)
+  }
+
+  private static func createBuffer(
+    environment: LiteRtEnvironment,
+    compiledModel: LiteRtCompiledModel,
+    tensorType: LiteRtRankedTensorType,
+    input: Bool
+  ) throws -> LiteRtTensorBuffer {
+    var requirements: LiteRtTensorBufferRequirements?
+    let requirementsStatus = input
+      ? LiteRtGetCompiledModelInputBufferRequirements(compiledModel, 0, 0, &requirements)
+      : LiteRtGetCompiledModelOutputBufferRequirements(compiledModel, 0, 0, &requirements)
+    try validate(
+      requirementsStatus,
+      operation: input ? "Get input buffer requirements" : "Get output buffer requirements"
+    )
+    guard let requirements else {
+      throw LiteRTExampleError.missingHandle(
+        input ? "input buffer requirements" : "output buffer requirements"
+      )
+    }
+
+    var mutableTensorType = tensorType
+    var buffer: LiteRtTensorBuffer?
+    try validate(
+      LiteRtCreateManagedTensorBufferFromRequirements(
+        environment,
+        &mutableTensorType,
+        requirements,
+        &buffer
+      ),
+      operation: input ? "Create input buffer" : "Create output buffer"
+    )
+    guard let buffer else {
+      throw LiteRTExampleError.missingHandle(input ? "input buffer" : "output buffer")
+    }
+    return buffer
   }
 
   private static func rankedTensorType(
@@ -209,8 +222,11 @@ enum LiteRTRunner {
     }
 
     values.withUnsafeBufferPointer { values in
+      guard let baseAddress = values.baseAddress else {
+        return
+      }
       address.copyMemory(
-        from: values.baseAddress!,
+        from: baseAddress,
         byteCount: values.count * MemoryLayout<Float>.size
       )
     }

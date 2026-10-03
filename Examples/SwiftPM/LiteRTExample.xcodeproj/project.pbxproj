@@ -12,12 +12,23 @@
 		200000000000000000000003 /* LiteRTRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300000000000000000000003 /* LiteRTRunner.swift */; };
 		200000000000000000000004 /* CPUIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300000000000000000000004 /* CPUIntegrationTests.swift */; };
 		200000000000000000000005 /* LiteRT in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000002 /* LiteRT */; };
-		200000000000000000000006 /* MetalRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300000000000000000000008 /* MetalRegistrationTests.swift */; };
+		200000000000000000000006 /* MetalIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300000000000000000000008 /* MetalIntegrationTests.swift */; };
 		200000000000000000000007 /* LiteRT in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000003 /* LiteRT */; };
+		200000000000000000000008 /* MobileNetV2BenchmarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300000000000000000000009 /* MobileNetV2BenchmarkTests.swift */; };
+		200000000000000000000009 /* LiteRT in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000004 /* LiteRT */; };
+		20000000000000000000000A /* LiteRTMetalRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30000000000000000000000B /* LiteRTMetalRegistration.swift */; };
+		20000000000000000000000B /* LiteRTMetalRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30000000000000000000000B /* LiteRTMetalRegistration.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		400000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 500000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 100000000000000000000001;
+			remoteInfo = LiteRTExample;
+		};
+		400000000000000000000003 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 500000000000000000000001 /* Project object */;
 			proxyType = 1;
@@ -34,7 +45,10 @@
 		300000000000000000000005 /* Simulator.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = Simulator.xctestplan; path = ../../Tests/Integration/Simulator.xctestplan; sourceTree = "<group>"; };
 		300000000000000000000006 /* LiteRTExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LiteRTExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		300000000000000000000007 /* LiteRTExampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LiteRTExampleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		300000000000000000000008 /* MetalRegistrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MetalRegistrationTests.swift; path = ../../Tests/Integration/MetalRegistrationTests.swift; sourceTree = "<group>"; };
+		300000000000000000000008 /* MetalIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MetalIntegrationTests.swift; path = ../../Tests/Integration/MetalIntegrationTests.swift; sourceTree = "<group>"; };
+		300000000000000000000009 /* MobileNetV2BenchmarkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MobileNetV2BenchmarkTests.swift; path = ../../Tests/Benchmark/MobileNetV2BenchmarkTests.swift; sourceTree = "<group>"; };
+		30000000000000000000000A /* LiteRTBenchmarkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LiteRTBenchmarkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		30000000000000000000000B /* LiteRTMetalRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteRTMetalRegistration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +65,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				200000000000000000000007 /* LiteRT in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		600000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				200000000000000000000009 /* LiteRT in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -80,6 +102,7 @@
 			isa = PBXGroup;
 			children = (
 				300000000000000000000003 /* LiteRTRunner.swift */,
+				30000000000000000000000B /* LiteRTMetalRegistration.swift */,
 			);
 			path = ../Shared/Runtime;
 			sourceTree = "<group>";
@@ -88,7 +111,8 @@
 			isa = PBXGroup;
 			children = (
 				300000000000000000000004 /* CPUIntegrationTests.swift */,
-				300000000000000000000008 /* MetalRegistrationTests.swift */,
+				300000000000000000000008 /* MetalIntegrationTests.swift */,
+				300000000000000000000009 /* MobileNetV2BenchmarkTests.swift */,
 				300000000000000000000005 /* Simulator.xctestplan */,
 			);
 			name = Tests;
@@ -99,6 +123,7 @@
 			children = (
 				300000000000000000000006 /* LiteRTExample.app */,
 				300000000000000000000007 /* LiteRTExampleTests.xctest */,
+				30000000000000000000000A /* LiteRTBenchmarkTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -147,6 +172,27 @@
 			productReference = 300000000000000000000007 /* LiteRTExampleTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		100000000000000000000003 /* LiteRTBenchmarkTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 800000000000000000000004 /* Build configuration list for PBXNativeTarget "LiteRTBenchmarkTests" */;
+			buildPhases = (
+				900000000000000000000005 /* Sources */,
+				600000000000000000000003 /* Frameworks */,
+				900000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				400000000000000000000004 /* PBXTargetDependency */,
+			);
+			name = LiteRTBenchmarkTests;
+			packageProductDependencies = (
+				A00000000000000000000004 /* LiteRT */,
+			);
+			productName = LiteRTBenchmarkTests;
+			productReference = 30000000000000000000000A /* LiteRTBenchmarkTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -161,6 +207,10 @@
 						CreatedOnToolsVersion = 26.0;
 					};
 					100000000000000000000002 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 100000000000000000000001;
+					};
+					100000000000000000000003 = {
 						CreatedOnToolsVersion = 26.0;
 						TestTargetID = 100000000000000000000001;
 					};
@@ -184,6 +234,7 @@
 			targets = (
 				100000000000000000000001 /* LiteRTExample */,
 				100000000000000000000002 /* LiteRTExampleTests */,
+				100000000000000000000003 /* LiteRTBenchmarkTests */,
 			);
 		};
 /* End PBXProject section */
@@ -203,6 +254,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		900000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -213,6 +271,7 @@
 				200000000000000000000001 /* LiteRTExampleApp.swift in Sources */,
 				200000000000000000000002 /* ContentView.swift in Sources */,
 				200000000000000000000003 /* LiteRTRunner.swift in Sources */,
+				20000000000000000000000A /* LiteRTMetalRegistration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -221,7 +280,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				200000000000000000000004 /* CPUIntegrationTests.swift in Sources */,
-				200000000000000000000006 /* MetalRegistrationTests.swift in Sources */,
+				200000000000000000000006 /* MetalIntegrationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		900000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				200000000000000000000008 /* MobileNetV2BenchmarkTests.swift in Sources */,
+				20000000000000000000000B /* LiteRTMetalRegistration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -232,6 +300,11 @@
 			isa = PBXTargetDependency;
 			target = 100000000000000000000001 /* LiteRTExample */;
 			targetProxy = 400000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		400000000000000000000004 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 100000000000000000000001 /* LiteRTExample */;
+			targetProxy = 400000000000000000000003 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -332,6 +405,36 @@
 			};
 			name = Release;
 		};
+		B00000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pinge.LiteRTBenchmarkTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LiteRTExample.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LiteRTExample";
+			};
+			name = Debug;
+		};
+		B00000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pinge.LiteRTBenchmarkTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LiteRTExample.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LiteRTExample";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -362,6 +465,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		800000000000000000000004 /* Build configuration list for PBXNativeTarget "LiteRTBenchmarkTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B00000000000000000000007 /* Debug */,
+				B00000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -382,6 +494,11 @@
 			productName = LiteRT;
 		};
 		A00000000000000000000003 /* LiteRT */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000001 /* XCRemoteSwiftPackageReference "litert-ios" */;
+			productName = LiteRT;
+		};
+		A00000000000000000000004 /* LiteRT */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A00000000000000000000001 /* XCRemoteSwiftPackageReference "litert-ios" */;
 			productName = LiteRT;

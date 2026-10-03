@@ -86,12 +86,26 @@ jobs:
     # https://github.com/actions/runner/issues/4453
     secrets: inherit
 
+  benchmark:
+    name: ⏱️
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/device-benchmark-tests.yml
+    with:
+      version: ${{ inputs.version }}
+      artifact_name: litert-v${{ inputs.version }}
+    # https://github.com/actions/runner/issues/4453
+    secrets: inherit
+
   release:
     name: 🏷️
     needs:
       - build
       - simulator
       - device
+      - benchmark
     permissions:
       contents: write
     uses: ./.github/workflows/release.yml
